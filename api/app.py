@@ -1,8 +1,15 @@
 """API REST + dashboard de StrateX (FastAPI).
 
 Expone las publicaciones analizadas con filtros por fuente, sector, relevancia
-y búsqueda de texto, además de estadísticas agregadas. La raíz ("/") sirve un
-dashboard HTML autocontenido que consume estos endpoints.
+y búsqueda de texto, estadísticas agregadas y **acciones** (disparar scraping,
+análisis por IA y marcar publicaciones). La raíz ("/") sirve un dashboard HTML
+autocontenido que consume estos endpoints.
+
+Autenticación: las acciones (POST/PATCH) exigen el header `X-API-Key` cuando
+`API_KEY` está definida en el entorno. La lectura (GET) es pública.
+
+CORS: configurable con `CORS_ORIGINS` (coma). Permite que un frontend en otro
+dominio/puerto consuma la API.
 
 Ejecutar:
     uvicorn api.app:app --reload --port 8000
@@ -10,24 +17,109 @@ Ejecutar:
 
 from __future__ import annotations
 
+import logging
+import threading
+from contextlib import asynccontextmanager
+from dataclasses import asdict
 from typing import Any
 
-from fastapi import FastAPI, Query
+from fastapi import BackgroundTasks, Depends, FastAPI, Header, HTTPException, Query
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
+from pydantic import BaseModel
 from sqlalchemy import func, select
 
+from ai import analyzer
+from config import API_KEY, CORS_ORIGINS, DEEPSEEK_API_KEY, FETCH_FULL_TEXT
 from database import get_session, init_db
 from models import PublicacionOficial as P
+from scrapers import full_text, registry
 from scrapers.catalog import por_categoria
 from scrapers.congresos_scraper import NOMBRES_CONGRESOS
 
-app = FastAPI(title="StrateX RegTech API", version="1.0")
+logger = logging.getLogger(__name__)
 
 
-@app.on_event("startup")
-def _startup() -> None:
+@asynccontextmanager
+async def lifespan(app: FastAPI):
     # Garantiza que el esquema/columnas existan al levantar la API.
     init_db()
+    yield
+
+
+app = FastAPI(title="StrateX RegTech API", version="1.1", lifespan=lifespan)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=CORS_ORIGINS,
+    allow_credentials=False,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
+# --------------------------------------------------------------------------- #
+#  Autenticación de acciones                                                   #
+# --------------------------------------------------------------------------- #
+def require_api_key(x_api_key: str | None = Header(default=None)) -> None:
+    """Exige X-API-Key en endpoints de acción si API_KEY está configurada."""
+    if API_KEY and x_api_key != API_KEY:
+        raise HTTPException(
+            status_code=401,
+            detail="API key inválida o ausente (header X-API-Key).",
+        )
+
+
+# --------------------------------------------------------------------------- #
+#  Gestor de trabajos en segundo plano (scraping / IA)                        #
+# --------------------------------------------------------------------------- #
+_jobs_lock = threading.Lock()
+_jobs: dict[str, dict[str, Any]] = {
+    "scrape": {"estado": "idle", "resultado": None, "error": None},
+    "ia": {"estado": "idle", "resultado": None, "error": None},
+}
+
+
+def _ejecutar_job(nombre: str, fn) -> None:
+    """Corre la función de un trabajo con su propia sesión y guarda el estado."""
+    db = get_session()
+    try:
+        resultado = fn(db)
+        estado = {"estado": "done", "resultado": resultado, "error": None}
+    except Exception as exc:  # noqa: BLE001 - lo reflejamos en el estado del job
+        logger.exception("El trabajo '%s' falló: %s", nombre, exc)
+        estado = {"estado": "error", "resultado": None, "error": str(exc)}
+    finally:
+        db.close()
+    with _jobs_lock:
+        _jobs[nombre] = estado
+
+
+def _lanzar_job(nombre: str, fn, background: BackgroundTasks) -> None:
+    """Marca el trabajo como en ejecución y lo agenda; 409 si ya corre."""
+    with _jobs_lock:
+        if _jobs.get(nombre, {}).get("estado") == "running":
+            raise HTTPException(
+                status_code=409,
+                detail=f"El trabajo '{nombre}' ya está en ejecución.",
+            )
+        _jobs[nombre] = {"estado": "running", "resultado": None, "error": None}
+    background.add_task(_ejecutar_job, nombre, fn)
+
+
+def _job_scrape(db) -> dict[str, Any]:
+    """Extracción multi-fuente + descarga de texto completo (si está activa)."""
+    scrapes = registry.run_all(db)
+    full_n = 0
+    if FETCH_FULL_TEXT:
+        try:
+            full_n = full_text.descargar_pendientes(db)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Texto completo falló: %s", exc)
+    return {
+        "fuentes": [asdict(s) for s in scrapes],
+        "texto_completo_descargado": full_n,
+    }
 
 
 def _serializar(p: P) -> dict[str, Any]:
@@ -46,12 +138,17 @@ def _serializar(p: P) -> dict[str, Any]:
         "entidades": p.entidades,
         "palabras_clave": p.palabras_clave,
         "procesado_por_ia": p.procesado_por_ia,
+        "revisado": p.revisado,
+        "descartado": p.descartado,
         "url_origen": p.url_origen,
         "url_pdf": p.url_pdf,
         "creado_en": p.creado_en.isoformat() if p.creado_en else None,
     }
 
 
+# --------------------------------------------------------------------------- #
+#  Lectura                                                                     #
+# --------------------------------------------------------------------------- #
 @app.get("/api/stats")
 def stats() -> dict[str, Any]:
     """Conteos agregados para el dashboard."""
@@ -129,6 +226,7 @@ def publicaciones(
     sector: str | None = None,
     nivel: str | None = None,
     q: str | None = None,
+    incluir_descartadas: bool = False,
     limit: int = Query(50, ge=1, le=500),
     offset: int = Query(0, ge=0),
 ) -> dict[str, Any]:
@@ -142,6 +240,8 @@ def publicaciones(
             consulta = consulta.where(P.sector == sector)
         if nivel:
             consulta = consulta.where(P.nivel_relevancia == nivel)
+        if not incluir_descartadas:
+            consulta = consulta.where(P.descartado.is_(False))
         if q:
             patron = f"%{q}%"
             consulta = consulta.where(
@@ -168,12 +268,73 @@ def publicacion(pub_id: str) -> dict[str, Any]:
     try:
         p = db.scalar(select(P).where(P.url_origen == pub_id)) or db.get(P, pub_id)
         if not p:
-            return {"error": "no encontrada"}
+            raise HTTPException(status_code=404, detail="Publicación no encontrada.")
         data = _serializar(p)
         data["texto_completo"] = p.texto_completo
         data["texto_limpio"] = p.texto_limpio
         data["analisis_ia"] = p.analisis_ia
         return data
+    finally:
+        db.close()
+
+
+# --------------------------------------------------------------------------- #
+#  Acciones (requieren X-API-Key si API_KEY está configurada)                 #
+# --------------------------------------------------------------------------- #
+class PublicacionUpdate(BaseModel):
+    """Campos editables de una publicación desde el frontend."""
+
+    revisado: bool | None = None
+    descartado: bool | None = None
+
+
+@app.post("/api/acciones/scrape", dependencies=[Depends(require_api_key)])
+def accion_scrape(background: BackgroundTasks) -> dict[str, Any]:
+    """Dispara la extracción multi-fuente en segundo plano."""
+    _lanzar_job("scrape", _job_scrape, background)
+    return {"trabajo": "scrape", "estado": "running"}
+
+
+@app.post("/api/acciones/procesar-ia", dependencies=[Depends(require_api_key)])
+def accion_procesar_ia(
+    background: BackgroundTasks,
+    limite: int | None = Query(
+        default=None,
+        description="Máx. publicaciones a analizar (None=AI_BATCH_LIMIT, 0=todas).",
+    ),
+) -> dict[str, Any]:
+    """Dispara el análisis por IA de las publicaciones pendientes."""
+    if not DEEPSEEK_API_KEY:
+        raise HTTPException(
+            status_code=503,
+            detail="DEEPSEEK_API_KEY no está configurada; el análisis por IA "
+            "está deshabilitado.",
+        )
+    _lanzar_job("ia", lambda db: asdict(analyzer.procesar_pendientes(db, limite=limite)), background)
+    return {"trabajo": "ia", "estado": "running"}
+
+
+@app.get("/api/acciones/estado")
+def acciones_estado() -> dict[str, Any]:
+    """Estado actual de los trabajos en segundo plano (para hacer polling)."""
+    with _jobs_lock:
+        return {k: dict(v) for k, v in _jobs.items()}
+
+
+@app.patch("/api/publicaciones/{pub_id}", dependencies=[Depends(require_api_key)])
+def actualizar_publicacion(pub_id: str, payload: PublicacionUpdate) -> dict[str, Any]:
+    """Marca una publicación como revisada y/o descartada."""
+    db = get_session()
+    try:
+        p = db.scalar(select(P).where(P.url_origen == pub_id)) or db.get(P, pub_id)
+        if not p:
+            raise HTTPException(status_code=404, detail="Publicación no encontrada.")
+        if payload.revisado is not None:
+            p.revisado = payload.revisado
+        if payload.descartado is not None:
+            p.descartado = payload.descartado
+        db.commit()
+        return _serializar(p)
     finally:
         db.close()
 
@@ -197,9 +358,10 @@ _DASHBOARD_HTML = """<!doctype html>
   body { margin:0; font:14px/1.5 -apple-system,Segoe UI,Roboto,sans-serif;
          background:var(--bg); color:var(--txt); }
   header { padding:20px 24px; border-bottom:1px solid var(--line);
-           display:flex; align-items:baseline; gap:12px; }
+           display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
   header h1 { font-size:20px; margin:0; }
   header span { color:var(--muted); font-size:13px; }
+  .spacer { flex:1; }
   .wrap { padding:24px; max-width:1200px; margin:0 auto; }
   .cards { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr));
            gap:12px; margin-bottom:20px; }
@@ -211,7 +373,13 @@ _DASHBOARD_HTML = """<!doctype html>
   .filters { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:16px; }
   select,input { background:var(--card); color:var(--txt); border:1px solid var(--line);
                  border-radius:8px; padding:8px 10px; font-size:13px; }
-  input { flex:1; min-width:180px; }
+  input.q { flex:1; min-width:180px; }
+  button { background:var(--accent); color:#fff; border:0; border-radius:8px;
+           padding:8px 14px; font-size:13px; font-weight:600; cursor:pointer; }
+  button.ghost { background:var(--card); border:1px solid var(--line); color:var(--txt); }
+  button:disabled { opacity:.5; cursor:not-allowed; }
+  .actions { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+  #job { font-size:12px; color:var(--muted); }
   table { width:100%; border-collapse:collapse; }
   th,td { text-align:left; padding:10px 12px; border-bottom:1px solid var(--line);
           vertical-align:top; }
@@ -240,6 +408,8 @@ _DASHBOARD_HTML = """<!doctype html>
   .est.BLOQUEADA { background:rgba(248,81,73,.15); color:var(--alta); }
   .est .c { font-variant-numeric:tabular-nums; opacity:.8; }
   .resumen { color:var(--muted); font-size:12.5px; margin-top:3px; }
+  .rowact { display:flex; gap:6px; margin-top:6px; }
+  .rowact button { padding:3px 8px; font-size:11px; font-weight:600; }
   a { color:var(--accent); text-decoration:none; }
   .muted { color:var(--muted); }
 </style>
@@ -247,6 +417,13 @@ _DASHBOARD_HTML = """<!doctype html>
 <body>
 <header>
   <h1>📑 StrateX</h1><span>Monitoreo Regulatorio Automatizado · México</span>
+  <div class="spacer"></div>
+  <div class="actions">
+    <span id="job"></span>
+    <button id="btn-scrape" class="ghost">🔄 Buscar nuevas</button>
+    <button id="btn-ia" class="ghost">🤖 Analizar pendientes</button>
+    <button id="btn-key" class="ghost" title="Configurar API key">🔑</button>
+  </div>
 </header>
 <div class="wrap">
   <div class="cards" id="cards"></div>
@@ -260,7 +437,7 @@ _DASHBOARD_HTML = """<!doctype html>
       <option value="">Toda relevancia</option>
       <option>Alta</option><option>Media</option><option>Baja</option>
     </select>
-    <input id="f-q" placeholder="Buscar en título o resumen…">
+    <input id="f-q" class="q" placeholder="Buscar en título o resumen…">
   </div>
   <table>
     <thead><tr><th>Fecha</th><th>Fuente</th><th>Sector</th><th>Rel.</th>
@@ -271,13 +448,17 @@ _DASHBOARD_HTML = """<!doctype html>
 </div>
 <script>
 const $ = s => document.querySelector(s);
+const KEY = () => localStorage.getItem('stratex_api_key') || '';
+const headers = () => KEY() ? {'X-API-Key': KEY(), 'Content-Type':'application/json'}
+                            : {'Content-Type':'application/json'};
+
 async function loadStats() {
   const s = await (await fetch('/api/stats')).json();
   $('#cards').innerHTML = [
     ['Total', s.total], ['Analizadas', s.procesadas], ['Pendientes', s.pendientes],
     ['Relevancia Alta', (s.por_relevancia||{})['Alta']||0],
   ].map(([l,n]) => `<div class="card"><div class="n">${n}</div><div class="l">${l}</div></div>`).join('');
-  const fill = (sel, obj) => { for (const k in obj)
+  const fill = (sel, obj) => { sel.length = sel.id==='f-fuente'?1:1; for (const k in obj)
     if (k!=='—') sel.innerHTML += `<option>${k}</option>`; };
   fill($('#f-fuente'), s.por_fuente); fill($('#f-sector'), s.por_sector);
 }
@@ -308,13 +489,50 @@ async function loadRows() {
       <td>${r.sector||'<span class="muted">—</span>'}</td>
       <td>${r.nivel_relevancia?`<span class="pill ${r.nivel_relevancia}">${r.nivel_relevancia}</span>`:''}</td>
       <td><div class="titulo"><a href="${r.url_origen}" target="_blank">${r.titulo}</a></div>
-          <div class="resumen">${r.resumen_ia||''}</div></td>
+          <div class="resumen">${r.resumen_ia||''}</div>
+          <div class="rowact">
+            <button class="ghost" onclick="marcar('${r.id}',{revisado:${!r.revisado}})">${r.revisado?'✓ Revisado':'Marcar revisado'}</button>
+            <button class="ghost" onclick="marcar('${r.id}',{descartado:true})">Descartar</button>
+          </div></td>
     </tr>`).join('') || '<tr><td colspan="5" class="muted">Sin resultados</td></tr>';
 }
+async function marcar(id, cambios) {
+  const resp = await fetch('/api/publicaciones/'+id, {
+    method:'PATCH', headers: headers(), body: JSON.stringify(cambios)});
+  if (resp.status === 401) return askKey('Se requiere API key para esta acción.');
+  loadRows();
+}
+let pollTimer;
+async function pollJobs() {
+  const j = await (await fetch('/api/acciones/estado')).json();
+  const running = Object.entries(j).filter(([,v]) => v.estado==='running').map(([k]) => k);
+  if (running.length) {
+    $('#job').textContent = '⏳ ejecutando: ' + running.join(', ');
+    if (!pollTimer) pollTimer = setInterval(pollJobs, 3000);
+  } else {
+    $('#job').textContent = '';
+    if (pollTimer) { clearInterval(pollTimer); pollTimer = null; loadStats(); loadRows(); }
+  }
+}
+async function dispara(url, label) {
+  const resp = await fetch(url, {method:'POST', headers: headers()});
+  if (resp.status === 401) return askKey('Se requiere API key para '+label+'.');
+  if (resp.status === 409) { $('#job').textContent = 'Ya hay un trabajo en curso.'; return; }
+  if (resp.status === 503) { const e = await resp.json(); alert(e.detail); return; }
+  pollJobs();
+}
+function askKey(msg) {
+  const k = prompt((msg? msg+'\\n\\n':'')+'Pega tu API key (X-API-Key). Vacío para borrarla:', KEY());
+  if (k === null) return;
+  if (k) localStorage.setItem('stratex_api_key', k); else localStorage.removeItem('stratex_api_key');
+}
+$('#btn-scrape').onclick = () => dispara('/api/acciones/scrape', 'buscar nuevas');
+$('#btn-ia').onclick = () => dispara('/api/acciones/procesar-ia', 'analizar con IA');
+$('#btn-key').onclick = () => askKey('');
 let t; const deb = () => { clearTimeout(t); t = setTimeout(loadRows, 300); };
 ['#f-fuente','#f-sector','#f-nivel'].forEach(s => $(s).onchange = loadRows);
 $('#f-q').oninput = deb;
-loadStats(); loadCobertura(); loadRows();
+loadStats(); loadCobertura(); loadRows(); pollJobs();
 </script>
 </body>
 </html>"""

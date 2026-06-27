@@ -142,8 +142,47 @@ no repetir.
 ```bash
 uvicorn api.app:app --port 8000     # luego abre http://127.0.0.1:8000
 ```
-- `GET /` — dashboard HTML con tarjetas, filtros (fuente/sector/relevancia) y búsqueda.
+
+### Lectura (pública)
+- `GET /` — dashboard HTML con tarjetas, filtros (fuente/sector/relevancia), búsqueda y botones de acción.
 - `GET /api/stats` — conteos agregados.
-- `GET /api/publicaciones?fuente=&sector=&nivel=&q=&limit=&offset=` — lista filtrable.
-- `GET /api/publicaciones/{id}` — detalle (incluye texto completo).
+- `GET /api/fuentes` — catálogo de ramas de monitoreo con estado y conteo.
+- `GET /api/publicaciones?fuente=&sector=&nivel=&q=&incluir_descartadas=&limit=&offset=` — lista filtrable.
+- `GET /api/publicaciones/{id}` — detalle (incluye texto completo). `id` = UUID o `url_origen`.
 - `GET /docs` — documentación interactiva (Swagger).
+
+### Acciones (requieren `X-API-Key` si `API_KEY` está definida)
+- `POST /api/acciones/scrape` — dispara la extracción multi-fuente (+ texto completo) en segundo plano.
+- `POST /api/acciones/procesar-ia?limite=` — dispara el análisis por IA de las pendientes.
+- `GET /api/acciones/estado` — estado de los trabajos en curso (para *polling*).
+- `PATCH /api/publicaciones/{id}` — marca `{revisado?: bool, descartado?: bool}`.
+
+Las acciones de scraping/IA corren como trabajos en segundo plano (un solo trabajo
+por tipo a la vez; devuelve `409` si ya hay uno corriendo). El dashboard incluye
+los botones **Buscar nuevas** y **Analizar pendientes**, y guarda la API key en
+`localStorage` (botón 🔑).
+
+```bash
+# Ejemplo: disparar un scraping con autenticación
+curl -X POST http://127.0.0.1:8000/api/acciones/scrape -H "X-API-Key: $API_KEY"
+```
+
+### Frontend separado (CORS)
+Para consumir la API desde un frontend en otro dominio/puerto, define los
+orígenes permitidos en `CORS_ORIGINS` (coma) y autentica las acciones con el
+header `X-API-Key`. No se usan cookies, así que `CORS_ORIGINS=*` es válido.
+
+## Despliegue (Docker / Railway)
+El repo incluye `Dockerfile`, `Procfile` y `railway.toml`.
+
+```bash
+# Local con Docker
+docker build -t stratex .
+docker run -p 8000:8000 --env-file .env stratex
+```
+
+En **Railway**: agrega el plugin de PostgreSQL (inyecta `DATABASE_URL`), define
+`DEEPSEEK_API_KEY`, `API_KEY`, `CORS_ORIGINS` y `SCRAPINGBEE_KEY` en las
+variables del servicio. El proceso `web` levanta la API; `init_db()` crea/migra
+el esquema al arrancar. El scraping diario puede correrse como cron de Railway
+ejecutando `python run_pipeline.py`.

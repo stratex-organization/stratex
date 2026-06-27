@@ -30,6 +30,8 @@ _AI_COLUMNS = {
     "procesado_en": "TIMESTAMP WITH TIME ZONE",
     "texto_completo": "TEXT",
     "alertado": "BOOLEAN DEFAULT FALSE",
+    "revisado": "BOOLEAN DEFAULT FALSE",
+    "descartado": "BOOLEAN DEFAULT FALSE",
 }
 
 

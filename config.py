@@ -141,7 +141,19 @@ SCRAPER_PROXY_VERIFY: bool = os.getenv("SCRAPER_PROXY_VERIFY", "true").lower() i
 SCRAPINGBEE_KEY: str | None = (
     os.getenv("SCRAPINGBEE_KEY") or os.getenv("SCRAPERAPI_KEY") or None
 )
-SCRAPINGBEE_COUNTRY: str = os.getenv("SCRAPINGBEE_COUNTRY", "mx")
+SCRAPINGBEE_COUNTRY: str = (
+    os.getenv("SCRAPINGBEE_COUNTRY") or os.getenv("SCRAPERAPI_COUNTRY") or "mx"
+)
 SCRAPINGBEE_PREMIUM: bool = os.getenv("SCRAPINGBEE_PREMIUM", "true").lower() in {
     "1", "true", "yes",
 }
+
+# --- API REST ---
+# Si se define, las acciones (POST/PATCH) exigen el header X-API-Key con este
+# valor. Vacío = sin autenticación (solo recomendable en desarrollo local).
+API_KEY: str | None = os.getenv("API_KEY") or None
+# Orígenes permitidos para CORS (coma). "*" = cualquiera (apto para un frontend
+# separado que use X-API-Key, no cookies). Restríngelo en producción.
+CORS_ORIGINS: list[str] = [
+    o.strip() for o in os.getenv("CORS_ORIGINS", "*").split(",") if o.strip()
+] or ["*"]

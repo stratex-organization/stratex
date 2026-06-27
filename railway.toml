@@ -1,0 +1,13 @@
+# Configuración de despliegue para Railway.
+# Usa el Dockerfile del repo; Railway inyecta $PORT y (si agregas el plugin de
+# PostgreSQL) la variable DATABASE_URL automáticamente.
+
+[build]
+builder = "dockerfile"
+
+[deploy]
+startCommand = "uvicorn api.app:app --host 0.0.0.0 --port $PORT"
+healthcheckPath = "/api/stats"
+healthcheckTimeout = 100
+restartPolicyType = "on_failure"
+restartPolicyMaxRetries = 3

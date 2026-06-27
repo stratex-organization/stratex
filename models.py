@@ -70,6 +70,13 @@ class PublicacionOficial(Base):
     alertado: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=False, server_default="false"
     )
+    # Marcas de gestión desde el frontend.
+    revisado: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="false"
+    )
+    descartado: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="false"
+    )
 
     creado_en: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),

@@ -1,0 +1,15 @@
+.venv/
+venv/
+env/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.git/
+.gitignore
+logs/
+*.log
+.DS_Store
+.env
+certs/_combined_ca.pem
+README.md

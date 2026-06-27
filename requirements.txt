@@ -4,6 +4,7 @@ psycopg2-binary>=2.9          # Driver PostgreSQL
 
 # ---- Scraping / Parsing ----
 requests>=2.31
+certifi>=2024.0              # Bundle de CAs (lo usa http_client para el TLS del DOF)
 beautifulsoup4>=4.12
 feedparser>=6.0
 lxml>=5.0                     # Parser rápido para BeautifulSoup/feedparser
