@@ -6,7 +6,9 @@
 builder = "dockerfile"
 
 [deploy]
-startCommand = "uvicorn api.app:app --host 0.0.0.0 --port $PORT"
+# Sin startCommand: usamos el CMD del Dockerfile, que corre vía `sh -c` y
+# expande ${PORT} en runtime (un startCommand aquí se ejecuta sin shell y
+# pasaría "$PORT" literal a uvicorn).
 healthcheckPath = "/api/stats"
 healthcheckTimeout = 100
 restartPolicyType = "on_failure"

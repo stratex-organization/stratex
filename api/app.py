@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import logging
 import threading
+import uuid as uuidlib
 from contextlib import asynccontextmanager
 from dataclasses import asdict
 from typing import Any
@@ -120,6 +121,18 @@ def _job_scrape(db) -> dict[str, Any]:
         "fuentes": [asdict(s) for s in scrapes],
         "texto_completo_descargado": full_n,
     }
+
+
+def _resolver(db, pub_id: str) -> P | None:
+    """Busca una publicación por url_origen o por UUID (sin romper con ids inválidos)."""
+    p = db.scalar(select(P).where(P.url_origen == pub_id))
+    if p:
+        return p
+    try:
+        uuidlib.UUID(str(pub_id))
+    except ValueError:
+        return None  # no es UUID ni url_origen conocida → no existe
+    return db.get(P, pub_id)
 
 
 def _serializar(p: P) -> dict[str, Any]:
@@ -266,7 +279,7 @@ def publicacion(pub_id: str) -> dict[str, Any]:
     """Detalle de una publicación (incluye texto completo)."""
     db = get_session()
     try:
-        p = db.scalar(select(P).where(P.url_origen == pub_id)) or db.get(P, pub_id)
+        p = _resolver(db, pub_id)
         if not p:
             raise HTTPException(status_code=404, detail="Publicación no encontrada.")
         data = _serializar(p)
@@ -326,7 +339,7 @@ def actualizar_publicacion(pub_id: str, payload: PublicacionUpdate) -> dict[str,
     """Marca una publicación como revisada y/o descartada."""
     db = get_session()
     try:
-        p = db.scalar(select(P).where(P.url_origen == pub_id)) or db.get(P, pub_id)
+        p = _resolver(db, pub_id)
         if not p:
             raise HTTPException(status_code=404, detail="Publicación no encontrada.")
         if payload.revisado is not None:
