@@ -10,3 +10,7 @@ lxml>=5.0                     # Parser rápido para BeautifulSoup/feedparser
 
 # ---- Configuración de entorno ----
 python-dotenv>=1.0
+
+# ---- Capa de IA (DeepSeek, API compatible con OpenAI) ----
+openai>=1.50
+pydantic>=2.0

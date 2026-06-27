@@ -9,8 +9,10 @@ from __future__ import annotations
 import uuid
 from datetime import date, datetime
 
+from typing import Any
+
 from sqlalchemy import Boolean, Date, DateTime, String, Text, func
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 
@@ -46,6 +48,21 @@ class PublicacionOficial(Base):
 
     procesado_por_ia: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=False, server_default="false"
+    )
+
+    # ---- Resultados del análisis con IA (Claude) ----
+    resumen_ia: Mapped[str | None] = mapped_column(Text, nullable=True)
+    sector: Mapped[str | None] = mapped_column(String(80), nullable=True, index=True)
+    tipo_documento: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    nivel_relevancia: Mapped[str | None] = mapped_column(
+        String(20), nullable=True, index=True
+    )
+    entidades: Mapped[list[str] | None] = mapped_column(JSONB, nullable=True)
+    palabras_clave: Mapped[list[str] | None] = mapped_column(JSONB, nullable=True)
+    # Payload completo del análisis (para trazabilidad / campos futuros).
+    analisis_ia: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
+    procesado_en: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
     )
 
     creado_en: Mapped[datetime] = mapped_column(

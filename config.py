@@ -36,6 +36,15 @@ DOF_RSS_URL: str = os.getenv(
 )
 DOF_INDEX_URL: str = os.getenv("DOF_INDEX_URL", "https://www.dof.gob.mx/")
 
+# --- Capa de IA (DeepSeek; API compatible con OpenAI) ---
+DEEPSEEK_API_KEY: str | None = os.getenv("DEEPSEEK_API_KEY")
+# Endpoint compatible con OpenAI de DeepSeek.
+AI_BASE_URL: str = os.getenv("AI_BASE_URL", "https://api.deepseek.com")
+# Modelo: "deepseek-chat" (V3, rápido) o "deepseek-reasoner" (R1, razonamiento).
+AI_MODEL: str = os.getenv("AI_MODEL", "deepseek-chat")
+# Cuántas publicaciones procesar por corrida (0 = sin límite).
+AI_BATCH_LIMIT: int = int(os.getenv("AI_BATCH_LIMIT", "25"))
+
 # --- Red ---
 SCRAPER_MIN_DELAY: float = float(os.getenv("SCRAPER_MIN_DELAY", "1"))
 SCRAPER_MAX_DELAY: float = float(os.getenv("SCRAPER_MAX_DELAY", "3"))
