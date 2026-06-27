@@ -1,0 +1,12 @@
+# ---- Base de datos / ORM ----
+SQLAlchemy>=2.0,<3.0
+psycopg2-binary>=2.9          # Driver PostgreSQL
+
+# ---- Scraping / Parsing ----
+requests>=2.31
+beautifulsoup4>=4.12
+feedparser>=6.0
+lxml>=5.0                     # Parser rápido para BeautifulSoup/feedparser
+
+# ---- Configuración de entorno ----
+python-dotenv>=1.0
