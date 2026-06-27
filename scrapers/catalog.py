@@ -55,8 +55,9 @@ CATALOGO: list[FuenteCatalogo] = [
     ),
     FuenteCatalogo(
         "CONGRESOS", "Congresos Locales (32 legislaturas estatales)", "Legislativo",
-        "Congresos Locales", "PENDIENTE",
-        "32 sitios heterogéneos; un parser por estado. Esfuerzo incremental.",
+        "Congresos Locales", "ACTIVA",
+        "21/32 alcanzables (resto vía ScrapingBee o URL por corregir). Extracción "
+        "con IA (filtra menús, deja publicaciones). Tlaxcala y BC en operación.",
     ),
 
     # --- Judicial ---
@@ -74,8 +75,8 @@ CATALOGO: list[FuenteCatalogo] = [
     ),
     FuenteCatalogo(
         "SAT", "SAT — Administración Tributaria", "Órganos Reguladores",
-        "SAT", "PENDIENTE",
-        "Mismo mecanismo gob.mx que CNBV; listo para activar (ENABLED_SOURCES=SAT).",
+        "SAT", "ACTIVA",
+        "Extracción vía ScrapingBee (gob.mx). En operación.",
     ),
     FuenteCatalogo(
         "BANXICO", "Banco de México (Banxico)", "Órganos Reguladores",
@@ -89,18 +90,19 @@ CATALOGO: list[FuenteCatalogo] = [
     ),
     FuenteCatalogo(
         "CRE", "CRE — Energía", "Órganos Reguladores",
-        "CRE", "PENDIENTE",
-        "Alcanzable vía ScrapingBee (antes timeout). Falta confirmar endpoint/parser.",
+        "CRE", "BLOQUEADA",
+        "Dependencia reestructurada (reforma energética 2024-2025): su portal es "
+        "ya 'cre-historico', sin publicaciones vigentes. Migrar a CNE.",
     ),
     FuenteCatalogo(
         "CNH", "CNH — Hidrocarburos", "Órganos Reguladores",
-        "CNH", "PENDIENTE",
-        "gob.mx, alcanzable vía ScrapingBee+render (vence Akamai). Falta endpoint/parser.",
+        "CNH", "ACTIVA",
+        "Extracción vía ScrapingBee (gob.mx). En operación.",
     ),
     FuenteCatalogo(
         "COFEPRIS", "COFEPRIS — Salud / Sanitario", "Órganos Reguladores",
-        "COFEPRIS", "PENDIENTE",
-        "gob.mx, alcanzable vía ScrapingBee+render (vence Akamai). Falta endpoint/parser.",
+        "COFEPRIS", "ACTIVA",
+        "Comunicados de prensa vía ScrapingBee (gob.mx, sin render). En operación.",
     ),
 ]
 

@@ -103,14 +103,22 @@ def build_session(via_scraper: bool = False, render_js: bool = False) -> request
     session = requests.Session()
     session.headers.update(DEFAULT_HEADERS)
 
-    # Reintentos con backoff para rate-limiting y errores transitorios.
-    retry = Retry(
-        total=3,
-        backoff_factor=1.5,
-        status_forcelist=(429, 500, 502, 503, 504),
-        allowed_methods=frozenset(["GET", "HEAD"]),
-        respect_retry_after_header=True,
-    )
+    # Reintentos con backoff. En modo scraper NO reintentamos timeouts de
+    # lectura (cada reintento consume créditos y el render ya es lento).
+    if via_scraper:
+        retry = Retry(
+            total=1, connect=1, read=0,
+            status_forcelist=(429, 500, 502, 503),
+            allowed_methods=frozenset(["GET", "HEAD"]),
+        )
+    else:
+        retry = Retry(
+            total=3,
+            backoff_factor=1.5,
+            status_forcelist=(429, 500, 502, 503, 504),
+            allowed_methods=frozenset(["GET", "HEAD"]),
+            respect_retry_after_header=True,
+        )
     adapter = HTTPAdapter(max_retries=retry)
     session.mount("https://", adapter)
     session.mount("http://", adapter)

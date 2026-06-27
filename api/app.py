@@ -19,6 +19,7 @@ from sqlalchemy import func, select
 from database import get_session, init_db
 from models import PublicacionOficial as P
 from scrapers.catalog import por_categoria
+from scrapers.congresos_scraper import NOMBRES_CONGRESOS
 
 app = FastAPI(title="StrateX RegTech API", version="1.0")
 
@@ -109,7 +110,11 @@ def fuentes() -> dict[str, Any]:
                         "nombre": f.nombre,
                         "estado": f.estado,
                         "nota": f.nota,
-                        "publicaciones": conteos.get(f.fuente_db, 0),
+                        "publicaciones": (
+                            sum(conteos.get(n, 0) for n in NOMBRES_CONGRESOS)
+                            if f.clave == "CONGRESOS"
+                            else conteos.get(f.fuente_db, 0)
+                        ),
                     }
                     for f in fuentes_cat
                 ],

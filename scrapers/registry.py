@@ -46,7 +46,8 @@ _GENERIC_SOURCES: dict[str, FuenteConfig] = {
         "CNH", index_url=CNH_INDEX_URL, via_scraper=True, render_js=True
     ),
     "COFEPRIS": FuenteConfig(
-        "COFEPRIS", index_url=COFEPRIS_INDEX_URL, via_scraper=True, render_js=True
+        # Sin render: la página es muy pesada y el render hace timeout.
+        "COFEPRIS", index_url=COFEPRIS_INDEX_URL, via_scraper=True, render_js=False
     ),
     "CRE": FuenteConfig(
         "CRE", index_url=CRE_INDEX_URL, via_scraper=True, render_js=True
