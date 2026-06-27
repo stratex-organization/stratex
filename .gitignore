@@ -16,3 +16,4 @@ __pycache__/
 
 # Bundle CA combinado (se regenera en runtime desde certifi + intermedio)
 certs/_combined_ca.pem
+logs/

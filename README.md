@@ -79,8 +79,24 @@ Resultados que se guardan en la tabla:
 - `analisis_ia` — payload completo (trazabilidad)
 
 ```bash
-# Requiere ANTHROPIC_API_KEY en .env
+# Requiere DEEPSEEK_API_KEY en .env
 python process_ai.py        # procesa hasta AI_BATCH_LIMIT pendientes
 python process_ai.py 5      # procesa hasta 5
 python process_ai.py 0      # procesa todas las pendientes
+```
+
+## Pipeline diario (scraping + IA)
+`run_pipeline.py` encadena extracción + análisis en una sola corrida:
+```bash
+python run_pipeline.py        # scraping + IA (hasta AI_BATCH_LIMIT)
+python run_pipeline.py 0      # scraping + IA de todas las pendientes
+python run_pipeline.py --no-ia  # solo scraping
+```
+
+### Automatización
+`scripts/run_daily.sh` activa el venv, corre el pipeline y registra la salida en
+`logs/`. Para ejecutarlo automáticamente cada día a las 8:00 AM, añade esta línea
+con `crontab -e`:
+```cron
+0 8 * * * /Users/kenethruiz/Desktop/stratex/scripts/run_daily.sh
 ```
