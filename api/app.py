@@ -28,7 +28,7 @@ from fastapi import BackgroundTasks, Depends, FastAPI, Header, HTTPException, Qu
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 
 from ai import analyzer
 from config import API_KEY, CORS_ORIGINS, DEEPSEEK_API_KEY, FETCH_FULL_TEXT
@@ -386,12 +386,40 @@ def accion_scrape(background: BackgroundTasks) -> dict[str, Any]:
     return {"trabajo": "scrape", "estado": "running"}
 
 
+def _job_ia(limite: int | None, reprocesar: bool):
+    """Devuelve la función del job de IA (opcionalmente re-analiza todo)."""
+
+    def _run(db) -> dict[str, Any]:
+        reiniciadas = 0
+        if reprocesar:
+            # Marca como pendientes todas las no descartadas para re-analizarlas
+            # con el prompt enfocado a Xignux.
+            res = db.execute(
+                update(P)
+                .where(P.descartado.is_(False))
+                .values(procesado_por_ia=False)
+            )
+            reiniciadas = res.rowcount or 0
+            db.commit()
+            logger.info("Re-análisis: %d publicaciones marcadas como pendientes.", reiniciadas)
+        salida = asdict(analyzer.procesar_pendientes(db, limite=limite))
+        salida["reiniciadas"] = reiniciadas
+        return salida
+
+    return _run
+
+
 @app.post("/api/acciones/procesar-ia", dependencies=[Depends(require_api_key)])
 def accion_procesar_ia(
     background: BackgroundTasks,
     limite: int | None = Query(
         default=None,
         description="Máx. publicaciones a analizar (None=AI_BATCH_LIMIT, 0=todas).",
+    ),
+    reprocesar: bool = Query(
+        default=False,
+        description="Si True, reinicia y re-analiza TODAS las publicaciones no "
+        "descartadas (usa limite=0 para procesarlas todas).",
     ),
 ) -> dict[str, Any]:
     """Dispara el análisis por IA de las publicaciones pendientes."""
@@ -401,8 +429,11 @@ def accion_procesar_ia(
             detail="DEEPSEEK_API_KEY no está configurada; el análisis por IA "
             "está deshabilitado.",
         )
-    _lanzar_job("ia", lambda db: asdict(analyzer.procesar_pendientes(db, limite=limite)), background)
-    return {"trabajo": "ia", "estado": "running"}
+    # Al reprocesar conviene procesarlas todas salvo que se pida un límite explícito.
+    if reprocesar and limite is None:
+        limite = 0
+    _lanzar_job("ia", _job_ia(limite, reprocesar), background)
+    return {"trabajo": "ia", "estado": "running", "reprocesar": reprocesar}
 
 
 @app.get("/api/acciones/estado")
@@ -542,6 +573,7 @@ _DASHBOARD_HTML = """<!doctype html>
     <span id="job"></span>
     <button id="btn-scrape" class="ghost">🔄 Buscar nuevas</button>
     <button id="btn-ia" class="ghost">🤖 Analizar pendientes</button>
+    <button id="btn-reia" class="ghost" title="Reinicia y re-analiza TODO con el enfoque Xignux">♻️ Re-analizar todo</button>
     <button id="btn-key" class="ghost" title="Configurar API key">🔑</button>
   </div>
 </header>
@@ -719,6 +751,11 @@ function askKey(msg) {
 }
 $('#btn-scrape').onclick = () => dispara('/api/acciones/scrape', 'buscar nuevas');
 $('#btn-ia').onclick = () => dispara('/api/acciones/procesar-ia', 'analizar con IA');
+$('#btn-reia').onclick = () => {
+  if (confirm('Esto reinicia y re-analiza TODAS las publicaciones con el enfoque Xignux. '
+    + 'Consume llamadas a la IA y toma varios minutos. ¿Continuar?'))
+    dispara('/api/acciones/procesar-ia?reprocesar=true', 're-analizar todo');
+};
 $('#btn-key').onclick = () => askKey('');
 let t; const deb = () => { clearTimeout(t); t = setTimeout(loadRows, 300); };
 ['#f-fuente','#f-sector','#f-empresa','#f-nivel'].forEach(s => $(s).onchange = loadRows);

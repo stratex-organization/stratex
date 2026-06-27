@@ -56,10 +56,9 @@ CATALOGO: list[FuenteCatalogo] = [
     FuenteCatalogo(
         "CONGRESOS", "Congresos Locales (32 legislaturas estatales)", "Legislativo",
         "Congresos Locales", "ACTIVA",
-        "20/32 estados con datos (extracción con IA + ScrapingBee MX). Los 12 "
-        "restantes: servidores caídos (Michoacán, Guerrero, Nayarit, SLP, Chiapas), "
-        "cert inválido (Querétaro) o listados sin notas individuales (Campeche, "
-        "Coahuila, Hidalgo, Oaxaca, Sonora).",
+        "25/32 estados con datos (extracción con IA + ScrapingBee MX, crawl de "
+        "2 niveles). Restan: servidores caídos (Guerrero, Nayarit), cert inválido "
+        "(Querétaro), 401 (Oaxaca) y listados sin notas (Coahuila, Sonora).",
     ),
 
     # --- Judicial ---
