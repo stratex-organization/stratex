@@ -9,7 +9,7 @@ genérico (y ScrapingBee cuando el sitio bloquea IP extranjera).
 from __future__ import annotations
 
 CONGRESOS: list[tuple[str, str, str]] = [
-    ("AGS", "Congreso de Aguascalientes", "https://www.congresoags.gob.mx/"),
+    ("AGS", "Congreso de Aguascalientes", "https://congresoags.gob.mx/"),
     ("BC", "Congreso de Baja California", "https://www.congresobc.gob.mx/"),
     ("BCS", "Congreso de Baja California Sur", "https://www.cbcs.gob.mx/"),
     ("CAMP", "Congreso de Campeche", "https://congresocam.gob.mx/"),
@@ -30,11 +30,11 @@ CONGRESOS: list[tuple[str, str, str]] = [
     ("NL", "Congreso de Nuevo León", "https://www.hcnl.gob.mx/"),
     ("OAX", "Congreso de Oaxaca", "https://www.congresooaxaca.gob.mx/"),
     ("PUE", "Congreso de Puebla", "https://congresopuebla.gob.mx/"),
-    ("QRO", "Congreso de Querétaro", "https://legislaturaqueretaro.gob.mx/"),
+    ("QRO", "Congreso de Querétaro", "https://legislaturaqro.gob.mx/"),
     ("QROO", "Congreso de Quintana Roo", "https://www.congresoqroo.gob.mx/"),
     ("SLP", "Congreso de San Luis Potosí", "https://congresosanluis.gob.mx/"),
     ("SIN", "Congreso de Sinaloa", "https://www.congresosinaloa.gob.mx/"),
-    ("SON", "Congreso de Sonora", "http://www.congresoson.gob.mx/"),
+    ("SON", "Congreso de Sonora", "https://congresoson.gob.mx/"),
     ("TAB", "Congreso de Tabasco", "https://congresotabasco.gob.mx/"),
     ("TAMS", "Congreso de Tamaulipas", "https://www.congresotamaulipas.gob.mx/"),
     ("TLAX", "Congreso de Tlaxcala", "https://congresodetlaxcala.gob.mx/"),
