@@ -33,7 +33,7 @@ from sqlalchemy import func, select
 from ai import analyzer
 from config import API_KEY, CORS_ORIGINS, DEEPSEEK_API_KEY, FETCH_FULL_TEXT
 from database import get_session, init_db
-from models import PublicacionOficial as P
+from models import EmpresaXignux, PublicacionOficial as P
 from scrapers import full_text, registry
 from scrapers.catalog import por_categoria
 from scrapers.congresos_scraper import NOMBRES_CONGRESOS
@@ -150,6 +150,17 @@ def _serializar(p: P) -> dict[str, Any]:
         "resumen_ia": p.resumen_ia,
         "entidades": p.entidades,
         "palabras_clave": p.palabras_clave,
+        # Inteligencia enfocada a Xignux.
+        "autoridad_emisora": p.autoridad_emisora,
+        "empresas_afectadas": p.empresas_afectadas,
+        "productos_afectados": p.productos_afectados,
+        "plantas_afectadas": p.plantas_afectadas,
+        "nivel_riesgo": p.nivel_riesgo,
+        "horizonte_impacto": p.horizonte_impacto,
+        "por_que_importa": p.por_que_importa,
+        "impacto_potencial": p.impacto_potencial,
+        "accion_recomendada": p.accion_recomendada,
+        "area_responsable": p.area_responsable,
         "procesado_por_ia": p.procesado_por_ia,
         "revisado": p.revisado,
         "descartado": p.descartado,
@@ -190,6 +201,66 @@ def stats() -> dict[str, Any]:
             "por_fuente": _group(P.fuente),
             "por_sector": _group(P.sector),
             "por_relevancia": _group(P.nivel_relevancia),
+            "por_riesgo": _group(P.nivel_riesgo),
+        }
+    finally:
+        db.close()
+
+
+# Prioridad de los niveles de riesgo para el Radar Legislativo.
+_ORDEN_RIESGO = ["Crítico", "Alto", "Medio", "Bajo", "Solo monitoreo"]
+
+
+@app.get("/api/radar")
+def radar() -> dict[str, Any]:
+    """Radar Legislativo: top alertas de riesgo y conteos para Xignux."""
+    db = get_session()
+    try:
+        base = select(P).where(
+            P.descartado.is_(False), P.procesado_por_ia.is_(True)
+        )
+
+        # Conteo por nivel de riesgo (en el orden de prioridad definido).
+        conteos = {
+            k or "—": v
+            for k, v in db.execute(
+                select(P.nivel_riesgo, func.count())
+                .where(P.descartado.is_(False), P.procesado_por_ia.is_(True))
+                .group_by(P.nivel_riesgo)
+            )
+        }
+        por_riesgo = {n: conteos.get(n, 0) for n in _ORDEN_RIESGO}
+
+        # Top alertas críticas/altas, más recientes primero.
+        criticas = db.scalars(
+            base.where(P.nivel_riesgo.in_(["Crítico", "Alto"]))
+            .order_by(P.fecha_publicacion.desc(), P.creado_en.desc())
+            .limit(10)
+        )
+        # Empresas de Xignux con más asuntos de riesgo (Crítico/Alto/Medio).
+        return {
+            "por_riesgo": por_riesgo,
+            "criticas": [_serializar(p) for p in criticas],
+        }
+    finally:
+        db.close()
+
+
+@app.get("/api/empresas")
+def empresas() -> dict[str, Any]:
+    """Empresas de Xignux dentro del alcance (para filtros del dashboard)."""
+    db = get_session()
+    try:
+        filas = db.scalars(
+            select(EmpresaXignux)
+            .where(EmpresaXignux.activo.is_(True), EmpresaXignux.en_alcance.is_(True))
+            .order_by(EmpresaXignux.id)
+        )
+        return {
+            "items": [
+                {"nombre": e.nombre, "unidad_negocio": e.unidad_negocio}
+                for e in filas
+            ]
         }
     finally:
         db.close()
@@ -238,6 +309,8 @@ def publicaciones(
     fuente: str | None = None,
     sector: str | None = None,
     nivel: str | None = None,
+    riesgo: str | None = None,
+    empresa: str | None = None,
     q: str | None = None,
     incluir_descartadas: bool = False,
     limit: int = Query(50, ge=1, le=500),
@@ -253,6 +326,11 @@ def publicaciones(
             consulta = consulta.where(P.sector == sector)
         if nivel:
             consulta = consulta.where(P.nivel_relevancia == nivel)
+        if riesgo:
+            consulta = consulta.where(P.nivel_riesgo == riesgo)
+        if empresa:
+            # empresas_afectadas es JSONB array -> contención (@>).
+            consulta = consulta.where(P.empresas_afectadas.contains([empresa]))
         if not incluir_descartadas:
             consulta = consulta.where(P.descartado.is_(False))
         if q:
@@ -403,6 +481,35 @@ _DASHBOARD_HTML = """<!doctype html>
   .Alta { background:rgba(248,81,73,.15); color:var(--alta); }
   .Media { background:rgba(210,153,34,.15); color:var(--media); }
   .Baja { background:rgba(63,185,80,.15); color:var(--baja); }
+  .r-critico { background:rgba(248,81,73,.22); color:#ff7b72; }
+  .r-alto { background:rgba(248,81,73,.15); color:var(--alta); }
+  .r-medio { background:rgba(210,153,34,.15); color:var(--media); }
+  .r-bajo { background:rgba(63,185,80,.15); color:var(--baja); }
+  .r-monitoreo { background:rgba(139,152,165,.15); color:var(--muted); }
+  .tag { display:inline-block; padding:1px 8px; border-radius:6px; font-size:11px;
+         background:rgba(56,139,253,.12); color:var(--accent); margin:2px 4px 0 0; }
+  /* Radar Legislativo */
+  .radar { display:grid; grid-template-columns:repeat(5,1fr); gap:8px;
+           margin-bottom:14px; }
+  .rk { background:var(--card); border:1px solid var(--line); border-radius:10px;
+        padding:12px 14px; text-align:center; }
+  .rk .n { font-size:24px; font-weight:700; }
+  .rk .l { font-size:11px; text-transform:uppercase; letter-spacing:.4px;
+           color:var(--muted); margin-top:2px; }
+  .rk.sel { outline:2px solid var(--accent); }
+  .alerta { background:var(--card); border:1px solid var(--line);
+            border-left:3px solid var(--alta); border-radius:8px; padding:10px 12px;
+            margin-bottom:8px; }
+  .alerta .at { font-weight:600; font-size:13px; }
+  .alerta .am { color:var(--muted); font-size:12px; margin-top:3px; }
+  /* Panel de detalle Xignux */
+  .detail { background:#11171f; border:1px solid var(--line); border-radius:8px;
+            padding:12px 14px; margin-top:8px; display:grid;
+            grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:10px 18px; }
+  .detail .dl { font-size:10.5px; text-transform:uppercase; letter-spacing:.4px;
+                color:var(--muted); }
+  .detail .dv { font-size:13px; margin-top:2px; }
+  .clic { cursor:pointer; }
   .src { color:var(--accent); font-weight:600; font-size:12px; }
   .titulo { font-weight:500; }
   h2.sec { font-size:13px; text-transform:uppercase; letter-spacing:.06em;
@@ -440,20 +547,31 @@ _DASHBOARD_HTML = """<!doctype html>
 </header>
 <div class="wrap">
   <div class="cards" id="cards"></div>
+
+  <h2 class="sec">📡 Radar Legislativo · riesgo para Xignux</h2>
+  <div class="radar" id="radar"></div>
+  <div id="alertas"></div>
+
   <h2 class="sec">Cobertura regulatoria · ramas de monitoreo</h2>
   <div id="cobertura"></div>
   <h2 class="sec">Publicaciones</h2>
   <div class="filters">
     <select id="f-fuente"><option value="">Todas las fuentes</option></select>
     <select id="f-sector"><option value="">Todos los sectores</option></select>
+    <select id="f-empresa"><option value="">Todas las empresas</option></select>
     <select id="f-nivel">
       <option value="">Toda relevancia</option>
       <option>Alta</option><option>Media</option><option>Baja</option>
     </select>
+    <select id="f-riesgo">
+      <option value="">Todo riesgo</option>
+      <option>Crítico</option><option>Alto</option><option>Medio</option>
+      <option>Bajo</option><option>Solo monitoreo</option>
+    </select>
     <input id="f-q" class="q" placeholder="Buscar en título o resumen…">
   </div>
   <table>
-    <thead><tr><th>Fecha</th><th>Fuente</th><th>Sector</th><th>Rel.</th>
+    <thead><tr><th>Fecha</th><th>Fuente</th><th>Riesgo</th><th>Empresa(s)</th>
       <th>Publicación</th></tr></thead>
     <tbody id="rows"><tr><td colspan="5" class="muted">Cargando…</td></tr></tbody>
   </table>
@@ -464,16 +582,50 @@ const $ = s => document.querySelector(s);
 const KEY = () => localStorage.getItem('stratex_api_key') || '';
 const headers = () => KEY() ? {'X-API-Key': KEY(), 'Content-Type':'application/json'}
                             : {'Content-Type':'application/json'};
+const esc = s => (s==null?'':String(s)).replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+const RKMAP = {'Crítico':'r-critico','Alto':'r-alto','Medio':'r-medio','Bajo':'r-bajo','Solo monitoreo':'r-monitoreo'};
+const rkClass = r => RKMAP[r] || 'r-monitoreo';
+const RIESGOS = ['Crítico','Alto','Medio','Bajo','Solo monitoreo'];
 
 async function loadStats() {
   const s = await (await fetch('/api/stats')).json();
   $('#cards').innerHTML = [
     ['Total', s.total], ['Analizadas', s.procesadas], ['Pendientes', s.pendientes],
-    ['Relevancia Alta', (s.por_relevancia||{})['Alta']||0],
+    ['Riesgo Crítico', (s.por_riesgo||{})['Crítico']||0],
   ].map(([l,n]) => `<div class="card"><div class="n">${n}</div><div class="l">${l}</div></div>`).join('');
-  const fill = (sel, obj) => { sel.length = sel.id==='f-fuente'?1:1; for (const k in obj)
-    if (k!=='—') sel.innerHTML += `<option>${k}</option>`; };
+  const fill = (sel, obj) => { sel.length = 1; for (const k in obj)
+    if (k!=='—') sel.innerHTML += `<option>${esc(k)}</option>`; };
   fill($('#f-fuente'), s.por_fuente); fill($('#f-sector'), s.por_sector);
+}
+async function loadEmpresas() {
+  try {
+    const d = await (await fetch('/api/empresas')).json();
+    const sel = $('#f-empresa'); sel.length = 1;
+    d.items.forEach(e => sel.innerHTML += `<option>${esc(e.nombre)}</option>`);
+  } catch (_) {}
+}
+async function loadRadar() {
+  const d = await (await fetch('/api/radar')).json();
+  const pr = d.por_riesgo || {};
+  $('#radar').innerHTML = RIESGOS.map(r => `
+    <div class="rk clic ${$('#f-riesgo').value===r?'sel':''}" onclick="filtrarRiesgo('${r}')">
+      <div class="n">${pr[r]||0}</div>
+      <div class="l"><span class="pill ${rkClass(r)}">${r}</span></div>
+    </div>`).join('');
+  const a = d.criticas || [];
+  $('#alertas').innerHTML = a.length ? a.map(r => `
+    <div class="alerta">
+      <div class="at"><span class="pill ${rkClass(r.nivel_riesgo)}">${r.nivel_riesgo||''}</span>
+        <a href="${esc(r.url_origen)}" target="_blank">${esc(r.titulo)}</a></div>
+      <div class="am">${esc(r.fuente)}${r.fecha_publicacion?(' · '+r.fecha_publicacion):''}
+        ${(r.empresas_afectadas||[]).map(e=>'· '+esc(e)).join(' ')}</div>
+      ${r.por_que_importa?`<div class="am">▸ ${esc(r.por_que_importa)}</div>`:''}
+      ${r.accion_recomendada?`<div class="am">✅ ${esc(r.accion_recomendada)}</div>`:''}
+    </div>`).join('') : '<p class="muted">Sin alertas críticas o altas por ahora.</p>';
+}
+function filtrarRiesgo(r) {
+  $('#f-riesgo').value = ($('#f-riesgo').value===r) ? '' : r;
+  loadRadar(); loadRows();
 }
 async function loadCobertura() {
   const d = await (await fetch('/api/fuentes')).json();
@@ -487,27 +639,53 @@ async function loadCobertura() {
         </div>`).join('')}</div>
     </div>`).join('');
 }
+function detalleXignux(r) {
+  const campo = (l, v) => v ? `<div><div class="dl">${l}</div><div class="dv">${esc(v)}</div></div>` : '';
+  const lista = (l, arr) => (arr && arr.length)
+    ? `<div><div class="dl">${l}</div><div class="dv">${arr.map(x=>`<span class="tag">${esc(x)}</span>`).join('')}</div></div>` : '';
+  const cuerpo = [
+    campo('Autoridad emisora', r.autoridad_emisora),
+    campo('Tipo de documento', r.tipo_documento),
+    campo('Sector', r.sector),
+    lista('Empresas afectadas', r.empresas_afectadas),
+    lista('Productos afectados', r.productos_afectados),
+    lista('Plantas afectadas', r.plantas_afectadas),
+    campo('Horizonte de impacto', r.horizonte_impacto),
+    campo('Área responsable', r.area_responsable),
+    campo('¿Por qué le importa a Xignux?', r.por_que_importa),
+    campo('Impacto potencial', r.impacto_potencial),
+    campo('Acción recomendada', r.accion_recomendada),
+    lista('Palabras clave', r.palabras_clave),
+  ].join('');
+  return cuerpo ? `<div class="detail">${cuerpo}</div>` : '';
+}
 async function loadRows() {
   const p = new URLSearchParams();
   if ($('#f-fuente').value) p.set('fuente', $('#f-fuente').value);
   if ($('#f-sector').value) p.set('sector', $('#f-sector').value);
+  if ($('#f-empresa').value) p.set('empresa', $('#f-empresa').value);
   if ($('#f-nivel').value) p.set('nivel', $('#f-nivel').value);
+  if ($('#f-riesgo').value) p.set('riesgo', $('#f-riesgo').value);
   if ($('#f-q').value) p.set('q', $('#f-q').value);
   const d = await (await fetch('/api/publicaciones?'+p)).json();
   $('#count').textContent = `${d.items.length} de ${d.total} publicaciones`;
   $('#rows').innerHTML = d.items.map(r => `
     <tr>
       <td class="muted">${r.fecha_publicacion||''}</td>
-      <td><span class="src">${r.fuente}</span></td>
-      <td>${r.sector||'<span class="muted">—</span>'}</td>
-      <td>${r.nivel_relevancia?`<span class="pill ${r.nivel_relevancia}">${r.nivel_relevancia}</span>`:''}</td>
-      <td><div class="titulo"><a href="${r.url_origen}" target="_blank">${r.titulo}</a></div>
-          <div class="resumen">${r.resumen_ia||''}</div>
+      <td><span class="src">${esc(r.fuente)}</span></td>
+      <td>${r.nivel_riesgo?`<span class="pill ${rkClass(r.nivel_riesgo)}">${r.nivel_riesgo}</span>`:'<span class="muted">—</span>'}</td>
+      <td>${(r.empresas_afectadas||[]).map(e=>`<span class="tag">${esc(e)}</span>`).join('')||'<span class="muted">—</span>'}</td>
+      <td><div class="titulo clic" onclick="toggleDet('${r.id}')">▸ <a href="${esc(r.url_origen)}" target="_blank" onclick="event.stopPropagation()">${esc(r.titulo)}</a></div>
+          <div class="resumen">${esc(r.resumen_ia)}</div>
+          <div id="det-${r.id}" style="display:none">${detalleXignux(r)}</div>
           <div class="rowact">
             <button class="ghost" onclick="marcar('${r.id}',{revisado:${!r.revisado}})">${r.revisado?'✓ Revisado':'Marcar revisado'}</button>
             <button class="ghost" onclick="marcar('${r.id}',{descartado:true})">Descartar</button>
           </div></td>
     </tr>`).join('') || '<tr><td colspan="5" class="muted">Sin resultados</td></tr>';
+}
+function toggleDet(id) {
+  const el = $('#det-'+id); if (el) el.style.display = el.style.display==='none' ? 'block' : 'none';
 }
 async function marcar(id, cambios) {
   const resp = await fetch('/api/publicaciones/'+id, {
@@ -524,7 +702,7 @@ async function pollJobs() {
     if (!pollTimer) pollTimer = setInterval(pollJobs, 3000);
   } else {
     $('#job').textContent = '';
-    if (pollTimer) { clearInterval(pollTimer); pollTimer = null; loadStats(); loadRows(); }
+    if (pollTimer) { clearInterval(pollTimer); pollTimer = null; loadStats(); loadRadar(); loadRows(); }
   }
 }
 async function dispara(url, label) {
@@ -543,9 +721,10 @@ $('#btn-scrape').onclick = () => dispara('/api/acciones/scrape', 'buscar nuevas'
 $('#btn-ia').onclick = () => dispara('/api/acciones/procesar-ia', 'analizar con IA');
 $('#btn-key').onclick = () => askKey('');
 let t; const deb = () => { clearTimeout(t); t = setTimeout(loadRows, 300); };
-['#f-fuente','#f-sector','#f-nivel'].forEach(s => $(s).onchange = loadRows);
+['#f-fuente','#f-sector','#f-empresa','#f-nivel'].forEach(s => $(s).onchange = loadRows);
+$('#f-riesgo').onchange = () => { loadRadar(); loadRows(); };
 $('#f-q').oninput = deb;
-loadStats(); loadCobertura(); loadRows(); pollJobs();
+loadStats(); loadEmpresas(); loadRadar(); loadCobertura(); loadRows(); pollJobs();
 </script>
 </body>
 </html>"""

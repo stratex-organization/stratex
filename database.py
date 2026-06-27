@@ -32,6 +32,17 @@ _AI_COLUMNS = {
     "alertado": "BOOLEAN DEFAULT FALSE",
     "revisado": "BOOLEAN DEFAULT FALSE",
     "descartado": "BOOLEAN DEFAULT FALSE",
+    # Inteligencia enfocada a Xignux (módulo de Regulación).
+    "autoridad_emisora": "VARCHAR(120)",
+    "empresas_afectadas": "JSONB",
+    "productos_afectados": "JSONB",
+    "plantas_afectadas": "JSONB",
+    "nivel_riesgo": "VARCHAR(20)",
+    "horizonte_impacto": "VARCHAR(30)",
+    "por_que_importa": "TEXT",
+    "impacto_potencial": "TEXT",
+    "accion_recomendada": "TEXT",
+    "area_responsable": "VARCHAR(120)",
 }
 
 
@@ -40,7 +51,17 @@ def init_db() -> None:
     logger.info("Inicializando esquema de base de datos...")
     Base.metadata.create_all(bind=engine)
     _ensure_ai_columns()
+    _seed_conocimiento()
     logger.info("Esquema listo.")
+
+
+def _seed_conocimiento() -> None:
+    """Carga el núcleo de conocimiento de Xignux si aún no existe."""
+    # Import diferido para evitar un ciclo (ai.knowledge importa models).
+    from ai import knowledge
+
+    with SessionLocal() as session:
+        knowledge.seed_knowledge(session)
 
 
 def _ensure_ai_columns() -> None:
