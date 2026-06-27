@@ -58,6 +58,9 @@ CNBV_RSS_URL: str = os.getenv("CNBV_RSS_URL", "https://www.gob.mx/cnbv/rss")
 CNBV_INDEX_URL: str = os.getenv("CNBV_INDEX_URL", "https://www.gob.mx/cnbv")
 SAT_RSS_URL: str = os.getenv("SAT_RSS_URL", "https://www.gob.mx/sat/rss")
 SAT_INDEX_URL: str = os.getenv("SAT_INDEX_URL", "https://www.gob.mx/sat")
+CNH_INDEX_URL: str = os.getenv("CNH_INDEX_URL", "https://www.gob.mx/cnh")
+COFEPRIS_INDEX_URL: str = os.getenv("COFEPRIS_INDEX_URL", "https://www.gob.mx/cofepris")
+CRE_INDEX_URL: str = os.getenv("CRE_INDEX_URL", "https://www.gob.mx/cre")
 BANXICO_RSS_URL: str = os.getenv(
     "BANXICO_RSS_URL", "https://www.banxico.org.mx/rss/rss.xml"
 )

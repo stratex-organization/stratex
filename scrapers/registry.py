@@ -17,6 +17,9 @@ from config import (
     BANXICO_RSS_URL,
     CNBV_INDEX_URL,
     CNBV_RSS_URL,
+    CNH_INDEX_URL,
+    COFEPRIS_INDEX_URL,
+    CRE_INDEX_URL,
     DIPUTADOS_INDEX_URL,
     DIPUTADOS_RSS_URL,
     ENABLED_SOURCES,
@@ -38,6 +41,15 @@ _GENERIC_SOURCES: dict[str, FuenteConfig] = {
     ),
     "SAT": FuenteConfig(
         "SAT", index_url=SAT_INDEX_URL, via_scraper=True, render_js=True
+    ),
+    "CNH": FuenteConfig(
+        "CNH", index_url=CNH_INDEX_URL, via_scraper=True, render_js=True
+    ),
+    "COFEPRIS": FuenteConfig(
+        "COFEPRIS", index_url=COFEPRIS_INDEX_URL, via_scraper=True, render_js=True
+    ),
+    "CRE": FuenteConfig(
+        "CRE", index_url=CRE_INDEX_URL, via_scraper=True, render_js=True
     ),
     "BANXICO": FuenteConfig(
         "BANXICO", index_url=BANXICO_INDEX_URL, via_scraper=True, render_js=True
