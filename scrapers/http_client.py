@@ -16,10 +16,23 @@ from __future__ import annotations
 
 import os
 
+import logging
+
 import certifi
 import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 
-from config import DEFAULT_HEADERS
+from config import (
+    DEFAULT_HEADERS,
+    SCRAPER_PROXY_URL,
+    SCRAPER_PROXY_VERIFY,
+    SCRAPINGBEE_COUNTRY,
+    SCRAPINGBEE_KEY,
+    SCRAPINGBEE_PREMIUM,
+)
+
+logger = logging.getLogger(__name__)
 
 _BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 _CERTS_DIR = os.path.join(_BASE_DIR, "certs")
@@ -61,9 +74,70 @@ def _build_ca_bundle() -> str:
 CA_BUNDLE: str = _build_ca_bundle()
 
 
-def build_session() -> requests.Session:
-    """Crea una `requests.Session` con headers e infraestructura TLS lista."""
+def _scrapingbee_proxy(render_js: bool) -> str:
+    """Construye la URL de proxy de ScrapingBee (IP MX + opciones)."""
+    opts = [
+        f"premium_proxy={'true' if SCRAPINGBEE_PREMIUM else 'false'}",
+        f"country_code={SCRAPINGBEE_COUNTRY}",
+        f"render_js={'true' if render_js else 'false'}",
+    ]
+    return f"http://{SCRAPINGBEE_KEY}:{'&'.join(opts)}@proxy.scrapingbee.com:8886"
+
+
+def build_session(via_scraper: bool = False, render_js: bool = False) -> requests.Session:
+    """Crea una `requests.Session` lista para sortear bloqueos comunes.
+
+    Incluye cabeceras de navegador real, verificación TLS con el bundle del DOF,
+    y reintentos con backoff (429/5xx).
+
+    Args:
+        via_scraper: enruta por ScrapingBee (IP mexicana + bypass de WAF). Solo
+            tiene efecto si SCRAPINGBEE_KEY está definida. Úsalo para fuentes
+            bloqueadas; consume créditos de la API.
+        render_js: pide a ScrapingBee renderizar JavaScript (necesario para
+            sitios con challenge JS como gob.mx).
+
+    Precedencia del enrutamiento: ScrapingBee (si via_scraper) > proxy
+    residencial (SCRAPER_PROXY_URL) > conexión directa.
+    """
     session = requests.Session()
     session.headers.update(DEFAULT_HEADERS)
-    session.verify = CA_BUNDLE
+
+    # Reintentos con backoff para rate-limiting y errores transitorios.
+    retry = Retry(
+        total=3,
+        backoff_factor=1.5,
+        status_forcelist=(429, 500, 502, 503, 504),
+        allowed_methods=frozenset(["GET", "HEAD"]),
+        respect_retry_after_header=True,
+    )
+    adapter = HTTPAdapter(max_retries=retry)
+    session.mount("https://", adapter)
+    session.mount("http://", adapter)
+
+    proxy_url: str | None = None
+    verify_tls = True
+
+    if via_scraper and SCRAPINGBEE_KEY:
+        proxy_url = _scrapingbee_proxy(render_js)
+        verify_tls = False  # ScrapingBee intercepta TLS en modo proxy.
+        logger.info("Sesión HTTP vía ScrapingBee (MX, render_js=%s).", render_js)
+    elif SCRAPER_PROXY_URL:
+        proxy_url = SCRAPER_PROXY_URL
+        verify_tls = SCRAPER_PROXY_VERIFY
+        logger.info("Sesión HTTP usando proxy residencial configurado.")
+
+    if proxy_url:
+        session.proxies = {"http": proxy_url, "https": proxy_url}
+        if not verify_tls:
+            session.verify = False
+            import urllib3
+
+            urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+        else:
+            session.verify = CA_BUNDLE
+    else:
+        session.verify = CA_BUNDLE
+
     return session
+

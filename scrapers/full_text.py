@@ -21,6 +21,8 @@ logger = logging.getLogger(__name__)
 REQUEST_TIMEOUT = 25
 # Límite defensivo de caracteres a almacenar por nota.
 MAX_CHARS = 60_000
+# Fuentes con extracción de cuerpo confiable (selector dedicado).
+FULL_TEXT_SOURCES = {"DOF"}
 
 
 def _extraer_cuerpo_dof(html_bytes: bytes) -> str | None:
@@ -63,6 +65,7 @@ def descargar_pendientes(db: Session, limite: int | None = None) -> int:
     consulta = (
         select(PublicacionOficial)
         .where(PublicacionOficial.texto_completo.is_(None))
+        .where(PublicacionOficial.fuente.in_(FULL_TEXT_SOURCES))
         .order_by(PublicacionOficial.creado_en)
     )
     if limite and limite > 0:

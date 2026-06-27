@@ -22,6 +22,7 @@ from config import (
     ENABLED_SOURCES,
     SAT_INDEX_URL,
     SAT_RSS_URL,
+    SENADO_INDEX_URL,
 )
 from scrapers import dof_scraper, generic_rss
 from scrapers.base import ScrapeResult
@@ -30,16 +31,22 @@ from scrapers.generic_rss import FuenteConfig
 logger = logging.getLogger(__name__)
 
 # Configuración de las fuentes genéricas (todas menos DOF).
+# via_scraper=True enruta por ScrapingBee (IP MX); render_js=True para gob.mx/SPAs.
 _GENERIC_SOURCES: dict[str, FuenteConfig] = {
-    "CNBV": FuenteConfig("CNBV", rss_url=CNBV_RSS_URL, index_url=CNBV_INDEX_URL),
-    "SAT": FuenteConfig("SAT", rss_url=SAT_RSS_URL, index_url=SAT_INDEX_URL),
+    "CNBV": FuenteConfig(
+        "CNBV", index_url=CNBV_INDEX_URL, via_scraper=True, render_js=True
+    ),
+    "SAT": FuenteConfig(
+        "SAT", index_url=SAT_INDEX_URL, via_scraper=True, render_js=True
+    ),
     "BANXICO": FuenteConfig(
-        "BANXICO", rss_url=BANXICO_RSS_URL, index_url=BANXICO_INDEX_URL
+        "BANXICO", index_url=BANXICO_INDEX_URL, via_scraper=True, render_js=True
     ),
     "DIPUTADOS": FuenteConfig(
-        "Cámara de Diputados",
-        rss_url=DIPUTADOS_RSS_URL,
-        index_url=DIPUTADOS_INDEX_URL,
+        "Cámara de Diputados", index_url=DIPUTADOS_INDEX_URL, via_scraper=True
+    ),
+    "SENADO": FuenteConfig(
+        "Senado", index_url=SENADO_INDEX_URL, via_scraper=True
     ),
 }
 

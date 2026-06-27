@@ -30,6 +30,7 @@ from scrapers.http_client import build_session
 logger = logging.getLogger(__name__)
 
 REQUEST_TIMEOUT = 25
+REQUEST_TIMEOUT_SCRAPER = 95  # ScrapingBee con render_js puede tardar más.
 
 
 @dataclass
@@ -39,11 +40,13 @@ class FuenteConfig:
     nombre: str
     rss_url: str | None = None
     index_url: str | None = None
+    via_scraper: bool = False   # enrutar por ScrapingBee (sitios bloqueados)
+    render_js: bool = False     # renderizar JS (gob.mx y SPAs)
 
 
-def _extraer_via_rss(session, cfg: FuenteConfig) -> list[Publicacion]:
+def _extraer_via_rss(session, cfg: FuenteConfig, timeout: int) -> list[Publicacion]:
     logger.info("[%s] Estrategia A (RSS): %s", cfg.nombre, cfg.rss_url)
-    resp = session.get(cfg.rss_url, timeout=REQUEST_TIMEOUT)
+    resp = session.get(cfg.rss_url, timeout=timeout)
     resp.raise_for_status()
 
     feed = feedparser.parse(resp.content)
@@ -89,9 +92,11 @@ def _extraer_via_rss(session, cfg: FuenteConfig) -> list[Publicacion]:
     return publicaciones
 
 
-def _extraer_via_html(session, cfg: FuenteConfig, hoy: date) -> list[Publicacion]:
+def _extraer_via_html(
+    session, cfg: FuenteConfig, hoy: date, timeout: int
+) -> list[Publicacion]:
     logger.info("[%s] Estrategia B (HTML): %s", cfg.nombre, cfg.index_url)
-    resp = session.get(cfg.index_url, timeout=REQUEST_TIMEOUT)
+    resp = session.get(cfg.index_url, timeout=timeout)
     resp.raise_for_status()
     polite_delay()
 
@@ -129,12 +134,14 @@ def run(db: Session, cfg: FuenteConfig, hoy: date | None = None) -> ScrapeResult
     """Ejecuta una fuente genérica con estrategia híbrida RSS -> HTML."""
     hoy = hoy or date.today()
     result = ScrapeResult(fuente=cfg.nombre)
-    http = build_session()
+    http = build_session(via_scraper=cfg.via_scraper, render_js=cfg.render_js)
+    # Con ScrapingBee + render el tiempo de respuesta es mayor.
+    timeout = REQUEST_TIMEOUT_SCRAPER if cfg.via_scraper else REQUEST_TIMEOUT
     publicaciones: list[Publicacion] = []
 
     if cfg.rss_url:
         try:
-            publicaciones = _extraer_via_rss(http, cfg)
+            publicaciones = _extraer_via_rss(http, cfg, timeout)
             if publicaciones:
                 result.estrategia = "RSS"
         except Exception as exc:  # noqa: BLE001
@@ -142,7 +149,7 @@ def run(db: Session, cfg: FuenteConfig, hoy: date | None = None) -> ScrapeResult
 
     if not publicaciones and cfg.index_url:
         try:
-            publicaciones = _extraer_via_html(http, cfg, hoy)
+            publicaciones = _extraer_via_html(http, cfg, hoy, timeout)
             if publicaciones:
                 result.estrategia = "HTML"
         except Exception as exc:  # noqa: BLE001

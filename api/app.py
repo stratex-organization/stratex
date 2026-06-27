@@ -18,6 +18,7 @@ from sqlalchemy import func, select
 
 from database import get_session, init_db
 from models import PublicacionOficial as P
+from scrapers.catalog import por_categoria
 
 app = FastAPI(title="StrateX RegTech API", version="1.0")
 
@@ -81,6 +82,40 @@ def stats() -> dict[str, Any]:
         }
     finally:
         db.close()
+
+
+@app.get("/api/fuentes")
+def fuentes() -> dict[str, Any]:
+    """Catálogo de ramas de monitoreo con su estado y conteo actual."""
+    db = get_session()
+    try:
+        conteos = {
+            k: v
+            for k, v in db.execute(
+                select(P.fuente, func.count()).group_by(P.fuente)
+            )
+        }
+    finally:
+        db.close()
+
+    grupos = []
+    for categoria, fuentes_cat in por_categoria().items():
+        grupos.append(
+            {
+                "categoria": categoria,
+                "fuentes": [
+                    {
+                        "clave": f.clave,
+                        "nombre": f.nombre,
+                        "estado": f.estado,
+                        "nota": f.nota,
+                        "publicaciones": conteos.get(f.fuente_db, 0),
+                    }
+                    for f in fuentes_cat
+                ],
+            }
+        )
+    return {"grupos": grupos}
 
 
 @app.get("/api/publicaciones")
@@ -184,6 +219,21 @@ _DASHBOARD_HTML = """<!doctype html>
   .Baja { background:rgba(63,185,80,.15); color:var(--baja); }
   .src { color:var(--accent); font-weight:600; font-size:12px; }
   .titulo { font-weight:500; }
+  h2.sec { font-size:13px; text-transform:uppercase; letter-spacing:.06em;
+           color:var(--muted); margin:28px 0 12px; }
+  .cov-cat { margin-bottom:14px; }
+  .cov-cat .cn { font-size:12px; color:var(--accent); font-weight:700; margin-bottom:6px; }
+  .cov { display:grid; grid-template-columns:repeat(auto-fill,minmax(240px,1fr)); gap:8px; }
+  .fsrc { background:var(--card); border:1px solid var(--line); border-radius:8px;
+          padding:10px 12px; display:flex; flex-direction:column; gap:4px; }
+  .fsrc .fn { font-size:13px; font-weight:600; }
+  .fsrc .fnote { font-size:11px; color:var(--muted); line-height:1.4; }
+  .est { align-self:flex-start; font-size:10.5px; font-weight:700; padding:1px 8px;
+         border-radius:999px; letter-spacing:.03em; }
+  .est.ACTIVA { background:rgba(63,185,80,.15); color:var(--baja); }
+  .est.PENDIENTE { background:rgba(210,153,34,.15); color:var(--media); }
+  .est.BLOQUEADA { background:rgba(248,81,73,.15); color:var(--alta); }
+  .est .c { font-variant-numeric:tabular-nums; opacity:.8; }
   .resumen { color:var(--muted); font-size:12.5px; margin-top:3px; }
   a { color:var(--accent); text-decoration:none; }
   .muted { color:var(--muted); }
@@ -195,6 +245,9 @@ _DASHBOARD_HTML = """<!doctype html>
 </header>
 <div class="wrap">
   <div class="cards" id="cards"></div>
+  <h2 class="sec">Cobertura regulatoria · ramas de monitoreo</h2>
+  <div id="cobertura"></div>
+  <h2 class="sec">Publicaciones</h2>
   <div class="filters">
     <select id="f-fuente"><option value="">Todas las fuentes</option></select>
     <select id="f-sector"><option value="">Todos los sectores</option></select>
@@ -223,6 +276,18 @@ async function loadStats() {
     if (k!=='—') sel.innerHTML += `<option>${k}</option>`; };
   fill($('#f-fuente'), s.por_fuente); fill($('#f-sector'), s.por_sector);
 }
+async function loadCobertura() {
+  const d = await (await fetch('/api/fuentes')).json();
+  $('#cobertura').innerHTML = d.grupos.map(g => `
+    <div class="cov-cat"><div class="cn">${g.categoria}</div>
+      <div class="cov">${g.fuentes.map(f => `
+        <div class="fsrc">
+          <span class="est ${f.estado}">${f.estado}${f.publicaciones?(' · <span class="c">'+f.publicaciones+'</span>'):''}</span>
+          <div class="fn">${f.nombre}</div>
+          <div class="fnote">${f.nota}</div>
+        </div>`).join('')}</div>
+    </div>`).join('');
+}
 async function loadRows() {
   const p = new URLSearchParams();
   if ($('#f-fuente').value) p.set('fuente', $('#f-fuente').value);
@@ -244,7 +309,7 @@ async function loadRows() {
 let t; const deb = () => { clearTimeout(t); t = setTimeout(loadRows, 300); };
 ['#f-fuente','#f-sector','#f-nivel'].forEach(s => $(s).onchange = loadRows);
 $('#f-q').oninput = deb;
-loadStats(); loadRows();
+loadStats(); loadCobertura(); loadRows();
 </script>
 </body>
 </html>"""
