@@ -45,6 +45,61 @@ AI_MODEL: str = os.getenv("AI_MODEL", "deepseek-chat")
 # Cuántas publicaciones procesar por corrida (0 = sin límite).
 AI_BATCH_LIMIT: int = int(os.getenv("AI_BATCH_LIMIT", "25"))
 
+# --- Fuentes adicionales (multi-fuente) ---
+# Fuentes activas en el pipeline (lista separada por comas).
+# Disponibles: DOF, CNBV, SAT, BANXICO, DIPUTADOS
+ENABLED_SOURCES: list[str] = [
+    s.strip().upper()
+    for s in os.getenv("ENABLED_SOURCES", "DOF").split(",")
+    if s.strip()
+]
+# Endpoints configurables por fuente (RSS preferido; HTML como respaldo).
+CNBV_RSS_URL: str = os.getenv("CNBV_RSS_URL", "https://www.gob.mx/cnbv/rss")
+CNBV_INDEX_URL: str = os.getenv("CNBV_INDEX_URL", "https://www.gob.mx/cnbv/prensa")
+SAT_RSS_URL: str = os.getenv("SAT_RSS_URL", "https://www.gob.mx/sat/rss")
+SAT_INDEX_URL: str = os.getenv("SAT_INDEX_URL", "https://www.gob.mx/sat/prensa")
+BANXICO_RSS_URL: str = os.getenv(
+    "BANXICO_RSS_URL", "https://www.banxico.org.mx/rss/rss.xml"
+)
+BANXICO_INDEX_URL: str = os.getenv(
+    "BANXICO_INDEX_URL", "https://www.banxico.org.mx/publicaciones-y-prensa"
+)
+DIPUTADOS_RSS_URL: str = os.getenv(
+    "DIPUTADOS_RSS_URL", "https://gaceta.diputados.gob.mx/rss/gaceta.xml"
+)
+DIPUTADOS_INDEX_URL: str = os.getenv(
+    "DIPUTADOS_INDEX_URL", "https://gaceta.diputados.gob.mx/"
+)
+
+# --- Texto completo ---
+# Si True, el pipeline descarga el cuerpo completo de cada nota nueva del DOF.
+FETCH_FULL_TEXT: bool = os.getenv("FETCH_FULL_TEXT", "true").lower() in {
+    "1", "true", "yes",
+}
+
+# --- Alertas ---
+# Niveles que disparan alerta (lista separada por comas).
+ALERT_NIVELES: list[str] = [
+    n.strip().capitalize()
+    for n in os.getenv("ALERT_NIVELES", "Alta").split(",")
+    if n.strip()
+]
+# Sectores vigilados (vacío = todos los sectores).
+ALERT_SECTORES: list[str] = [
+    s.strip() for s in os.getenv("ALERT_SECTORES", "").split(",") if s.strip()
+]
+# Canal Slack (webhook entrante). Vacío = desactivado.
+SLACK_WEBHOOK_URL: str | None = os.getenv("SLACK_WEBHOOK_URL") or None
+# Correo (SMTP). Todos los SMTP_* deben estar definidos para activarlo.
+SMTP_HOST: str | None = os.getenv("SMTP_HOST") or None
+SMTP_PORT: int = int(os.getenv("SMTP_PORT", "587"))
+SMTP_USER: str | None = os.getenv("SMTP_USER") or None
+SMTP_PASSWORD: str | None = os.getenv("SMTP_PASSWORD") or None
+ALERT_EMAIL_FROM: str | None = os.getenv("ALERT_EMAIL_FROM") or None
+ALERT_EMAIL_TO: list[str] = [
+    e.strip() for e in os.getenv("ALERT_EMAIL_TO", "").split(",") if e.strip()
+]
+
 # --- Red ---
 SCRAPER_MIN_DELAY: float = float(os.getenv("SCRAPER_MIN_DELAY", "1"))
 SCRAPER_MAX_DELAY: float = float(os.getenv("SCRAPER_MAX_DELAY", "3"))

@@ -45,6 +45,8 @@ class PublicacionOficial(Base):
     tipo_edicion: Mapped[str | None] = mapped_column(String(40), nullable=True)
 
     texto_limpio: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Cuerpo completo de la publicación (descargado del detalle, opcional).
+    texto_completo: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     procesado_por_ia: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=False, server_default="false"
@@ -63,6 +65,10 @@ class PublicacionOficial(Base):
     analisis_ia: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
     procesado_en: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
+    )
+    # True cuando ya se emitió una alerta por esta publicación.
+    alertado: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="false"
     )
 
     creado_en: Mapped[datetime] = mapped_column(

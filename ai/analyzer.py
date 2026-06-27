@@ -92,7 +92,11 @@ def _construir_prompt(pub: PublicacionOficial) -> str:
         f"Tipo de edición: {pub.tipo_edicion or 'N/D'}",
         f"Título / Sección: {pub.titulo}",
     ]
-    if pub.texto_limpio and pub.texto_limpio.strip() != (pub.titulo or "").strip():
+    # Preferimos el texto completo (más contexto); si no, el resumen del sumario.
+    if pub.texto_completo:
+        cuerpo = pub.texto_completo[:8000]
+        partes.append(f"Texto del documento (puede estar truncado):\n{cuerpo}")
+    elif pub.texto_limpio and pub.texto_limpio.strip() != (pub.titulo or "").strip():
         partes.append(f"Contenido / Contexto: {pub.texto_limpio}")
     partes.append(f"URL de origen: {pub.url_origen}")
     return (

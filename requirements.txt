@@ -14,3 +14,7 @@ python-dotenv>=1.0
 # ---- Capa de IA (DeepSeek, API compatible con OpenAI) ----
 openai>=1.50
 pydantic>=2.0
+
+# ---- API / Dashboard ----
+fastapi>=0.110
+uvicorn[standard]>=0.27

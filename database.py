@@ -28,6 +28,8 @@ _AI_COLUMNS = {
     "palabras_clave": "JSONB",
     "analisis_ia": "JSONB",
     "procesado_en": "TIMESTAMP WITH TIME ZONE",
+    "texto_completo": "TEXT",
+    "alertado": "BOOLEAN DEFAULT FALSE",
 }
 
 
