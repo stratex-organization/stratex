@@ -50,6 +50,43 @@ def _get_client() -> OpenAI:
     return _client
 
 
+SECCION_PROMPT = (
+    "Eres un navegador experto de sitios de congresos estatales mexicanos. "
+    "Recibes una lista de enlaces (texto y URL) de la página principal. Tu "
+    "tarea es identificar el ÚNICO enlace que lleva al LISTADO de publicaciones "
+    "legislativas (boletines, comunicados, noticias, prensa, gaceta o sala de "
+    "prensa) donde se listan notas individuales. Prefiere 'Boletines', "
+    "'Comunicados', 'Sala de Prensa', 'Noticias' o 'Gaceta'. Responde "
+    "EXCLUSIVAMENTE con JSON."
+)
+
+
+def elegir_seccion(candidatos: list[dict], fuente: str) -> str | None:
+    """Elige la URL de la sección de publicaciones (boletines/noticias)."""
+    if not candidatos:
+        return None
+    candidatos = candidatos[:MAX_CANDIDATOS]
+    lineas = [f"{i}\t{c['t'][:120]}\t{c['u']}" for i, c in enumerate(candidatos)]
+    prompt = (
+        f"Fuente: {fuente}\n\nEnlaces:\n" + "\n".join(lineas) + "\n\n"
+        'Devuelve JSON: {"url": "<la url de la sección de publicaciones>"} '
+        'o {"url": null} si ninguno aplica.'
+    )
+    client = _get_client()
+    completion = client.chat.completions.create(
+        model=AI_MODEL,
+        max_tokens=300,
+        response_format={"type": "json_object"},
+        messages=[
+            {"role": "system", "content": SECCION_PROMPT},
+            {"role": "user", "content": prompt},
+        ],
+    )
+    data = json.loads(completion.choices[0].message.content or "{}")
+    url = data.get("url")
+    return url.strip() if isinstance(url, str) and url.strip() else None
+
+
 def filtrar_publicaciones(
     candidatos: list[dict], fuente: str
 ) -> list[dict]:
