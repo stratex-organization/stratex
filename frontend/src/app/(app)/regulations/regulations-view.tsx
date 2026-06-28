@@ -530,7 +530,7 @@ function PublicacionRow({
 
 function PublicacionDetalle({ item }: { item: Publicacion }) {
   const campos: { label: string; value: string | null | undefined }[] = [
-    { label: "Por qué importa", value: item.por_que_importa },
+    { label: "Por qué le importa a Xignux", value: item.por_que_importa },
     { label: "Impacto potencial", value: item.impacto_potencial },
     { label: "Acción recomendada", value: item.accion_recomendada },
     { label: "Área responsable", value: item.area_responsable },
