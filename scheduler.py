@@ -62,6 +62,20 @@ async def _loop() -> None:
         await asyncio.sleep(60)
 
 
+def estado() -> dict:
+    """Estado del pipeline diario (para exponerlo en la API)."""
+    if not ENABLE_DAILY_PIPELINE:
+        return {"activo": False, "hora_utc": None, "proxima_corrida_utc": None}
+    proxima = datetime.now(timezone.utc) + timedelta(
+        seconds=_segundos_hasta(DAILY_PIPELINE_HOUR_UTC)
+    )
+    return {
+        "activo": True,
+        "hora_utc": DAILY_PIPELINE_HOUR_UTC % 24,
+        "proxima_corrida_utc": proxima.replace(microsecond=0).isoformat(),
+    }
+
+
 def iniciar() -> asyncio.Task | None:
     """Arranca el programador diario; devuelve la tarea (o None si está apagado)."""
     if not ENABLE_DAILY_PIPELINE:

@@ -209,6 +209,7 @@ def stats() -> dict[str, Any]:
             "por_sector": _group(P.sector),
             "por_relevancia": _group(P.nivel_relevancia),
             "por_riesgo": _group(P.nivel_riesgo),
+            "pipeline_diario": scheduler.estado(),
         }
     finally:
         db.close()
@@ -586,6 +587,7 @@ _DASHBOARD_HTML = """<!doctype html>
 </header>
 <div class="wrap">
   <div class="cards" id="cards"></div>
+  <p class="muted" id="daily" style="margin:-8px 0 16px"></p>
 
   <h2 class="sec">📡 Radar Legislativo · riesgo para Xignux</h2>
   <div class="radar" id="radar"></div>
@@ -635,6 +637,10 @@ async function loadStats() {
   const fill = (sel, obj) => { sel.length = 1; for (const k in obj)
     if (k!=='—') sel.innerHTML += `<option>${esc(k)}</option>`; };
   fill($('#f-fuente'), s.por_fuente); fill($('#f-sector'), s.por_sector);
+  const pd = s.pipeline_diario || {};
+  $('#daily').textContent = pd.activo
+    ? `⏱️ Análisis automático diario activado (${pd.hora_utc}:00 UTC). Próxima corrida: ${pd.proxima_corrida_utc} UTC.`
+    : '⏸️ Análisis automático diario desactivado.';
 }
 async function loadEmpresas() {
   try {
