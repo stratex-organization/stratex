@@ -20,29 +20,36 @@ depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
-    op.create_table(
-        "users",
-        sa.Column("id", sa.Uuid(as_uuid=True), primary_key=True, nullable=False),
-        sa.Column("nombre", sa.String(length=120), nullable=False),
-        sa.Column("apellido", sa.String(length=120), nullable=False),
-        sa.Column("email", sa.String(length=255), nullable=False),
-        sa.Column("hashed_password", sa.String(length=255), nullable=False),
-        sa.Column("must_change_password", sa.Boolean(), nullable=False, server_default=sa.true()),
-        sa.Column("is_active", sa.Boolean(), nullable=False, server_default=sa.true()),
-        sa.Column(
-            "created_at",
-            sa.DateTime(timezone=True),
-            server_default=sa.func.now(),
-            nullable=False,
-        ),
-        sa.Column(
-            "updated_at",
-            sa.DateTime(timezone=True),
-            server_default=sa.func.now(),
-            nullable=False,
-        ),
-    )
-    op.create_index(op.f("ix_users_email"), "users", ["email"], unique=True)
+    bind = op.get_bind()
+    result = bind.execute(sa.text(
+        "SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'users')"
+    ))
+    table_exists = result.scalar()
+
+    if not table_exists:
+        op.create_table(
+            "users",
+            sa.Column("id", sa.Uuid(as_uuid=True), primary_key=True, nullable=False),
+            sa.Column("nombre", sa.String(length=120), nullable=False),
+            sa.Column("apellido", sa.String(length=120), nullable=False),
+            sa.Column("email", sa.String(length=255), nullable=False),
+            sa.Column("hashed_password", sa.String(length=255), nullable=False),
+            sa.Column("must_change_password", sa.Boolean(), nullable=False, server_default=sa.true()),
+            sa.Column("is_active", sa.Boolean(), nullable=False, server_default=sa.true()),
+            sa.Column(
+                "created_at",
+                sa.DateTime(timezone=True),
+                server_default=sa.func.now(),
+                nullable=False,
+            ),
+            sa.Column(
+                "updated_at",
+                sa.DateTime(timezone=True),
+                server_default=sa.func.now(),
+                nullable=False,
+            ),
+        )
+        op.create_index(op.f("ix_users_email"), "users", ["email"], unique=True)
 
 
 def downgrade() -> None:
