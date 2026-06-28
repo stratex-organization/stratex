@@ -46,13 +46,13 @@ logger = logging.getLogger(__name__)
 async def lifespan(app: FastAPI):
     # Garantiza que el esquema/columnas existan al levantar la API.
     init_db()
-    # Arranca el pipeline diario automático (extracción + IA + alertas).
-    tarea_diaria = scheduler.iniciar()
+    # Arranca los programadores: pipeline diario + congresos semanal.
+    tareas = scheduler.iniciar()
     try:
         yield
     finally:
-        if tarea_diaria is not None:
-            tarea_diaria.cancel()
+        for t in tareas or []:
+            t.cancel()
 
 
 app = FastAPI(title="StrateX RegTech API", version="1.1", lifespan=lifespan)

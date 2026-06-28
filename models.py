@@ -218,3 +218,138 @@ class AutoridadRegulatoria(Base):
 
     def __repr__(self) -> str:  # pragma: no cover
         return f"<AutoridadRegulatoria {self.siglas or self.nombre!r}>"
+
+
+# ---------------------------------------------------------------------------
+# Módulo Proyectos de Ley (iniciativas legislativas federales y estatales)
+# ---------------------------------------------------------------------------
+
+
+class Iniciativa(Base):
+    """Una iniciativa / proyecto de ley con seguimiento e inteligencia Xignux."""
+
+    __tablename__ = "iniciativas"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    nombre: Mapped[str] = mapped_column(Text, nullable=False)
+    camara: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    # "Federal" | "Estatal"
+    nivel: Mapped[str | None] = mapped_column(String(20), nullable=True, index=True)
+    estado: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    legislador_promovente: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    partido: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    fecha_presentacion: Mapped[date | None] = mapped_column(Date, nullable=True, index=True)
+    estatus_legislativo: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    comision_dictaminadora: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    tema_principal: Mapped[str | None] = mapped_column(String(200), nullable=True)
+
+    # url_origen sirve como llave natural para deduplicación cuando viene de scraping.
+    url_origen: Mapped[str | None] = mapped_column(Text, nullable=True, unique=True)
+    texto_completo: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    # ---- Inteligencia Xignux ----
+    empresas_afectadas: Mapped[list[str] | None] = mapped_column(JSONB, nullable=True)
+    productos_afectados: Mapped[list[str] | None] = mapped_column(JSONB, nullable=True)
+    plantas_afectadas: Mapped[list[str] | None] = mapped_column(JSONB, nullable=True)
+    nivel_riesgo: Mapped[str | None] = mapped_column(String(20), nullable=True, index=True)
+    nivel_oportunidad: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    probabilidad_aprobacion: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    horizonte_impacto: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    resumen_ia: Mapped[str | None] = mapped_column(Text, nullable=True)
+    accion_recomendada: Mapped[str | None] = mapped_column(Text, nullable=True)
+    analisis_ia: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
+    procesado_por_ia: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="false"
+    )
+    procesado_en: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+
+    # Origen del registro: "scraping" | "manual"
+    origen: Mapped[str] = mapped_column(
+        String(20), nullable=False, default="manual", server_default="manual"
+    )
+    revisado: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="false"
+    )
+    descartado: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="false"
+    )
+    creado_en: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=func.now(), server_default=func.now()
+    )
+
+    def __repr__(self) -> str:  # pragma: no cover
+        return f"<Iniciativa {self.nivel} {self.nombre[:40]!r}>"
+
+
+# ---------------------------------------------------------------------------
+# Módulo Congreso (perfiles de legisladores)
+# ---------------------------------------------------------------------------
+
+
+class Legislador(Base):
+    """Perfil e inteligencia de un legislador (federal o local)."""
+
+    __tablename__ = "legisladores"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    nombre: Mapped[str] = mapped_column(String(200), nullable=False)
+    # "Senado" | "Cámara de Diputados" | "Congreso Local"
+    camara: Mapped[str | None] = mapped_column(String(120), nullable=True, index=True)
+    partido: Mapped[str | None] = mapped_column(String(80), nullable=True, index=True)
+    estado: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    distrito: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    cargo: Mapped[str | None] = mapped_column(String(160), nullable=True)
+    comisiones: Mapped[list[str] | None] = mapped_column(JSONB, nullable=True)
+    temas_interes: Mapped[list[str] | None] = mapped_column(JSONB, nullable=True)
+    iniciativas_relevantes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    historial_votaciones: Mapped[str | None] = mapped_column(Text, nullable=True)
+    relevancia_xignux: Mapped[str | None] = mapped_column(Text, nullable=True)
+    nivel_riesgo: Mapped[str | None] = mapped_column(String(20), nullable=True, index=True)
+    nivel_oportunidad: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    notas: Mapped[str | None] = mapped_column(Text, nullable=True)
+    creado_en: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=func.now(), server_default=func.now()
+    )
+
+    def __repr__(self) -> str:  # pragma: no cover
+        return f"<Legislador {self.nombre!r} ({self.partido})>"
+
+
+# ---------------------------------------------------------------------------
+# Módulo Stakeholders (actores públicos y privados relevantes)
+# ---------------------------------------------------------------------------
+
+
+class Stakeholder(Base):
+    """Perfil de un actor relevante (funcionario, cámara, sindicato, etc.)."""
+
+    __tablename__ = "stakeholders"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    nombre: Mapped[str] = mapped_column(String(200), nullable=False)
+    cargo: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    institucion: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    # "Funcionario federal", "Gobernador", "Cámara empresarial", "Sindicato", etc.
+    tipo: Mapped[str | None] = mapped_column(String(80), nullable=True, index=True)
+    partido: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    estado: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    temas_influencia: Mapped[list[str] | None] = mapped_column(JSONB, nullable=True)
+    facultades: Mapped[str | None] = mapped_column(Text, nullable=True)
+    relevancia_xignux: Mapped[str | None] = mapped_column(Text, nullable=True)
+    nivel_riesgo: Mapped[str | None] = mapped_column(String(20), nullable=True, index=True)
+    nivel_oportunidad: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    estrategia_relacionamiento: Mapped[str | None] = mapped_column(Text, nullable=True)
+    creado_en: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=func.now(), server_default=func.now()
+    )
+
+    def __repr__(self) -> str:  # pragma: no cover
+        return f"<Stakeholder {self.nombre!r} ({self.tipo})>"

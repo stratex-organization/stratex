@@ -54,6 +54,16 @@ ENABLE_DAILY_PIPELINE: bool = os.getenv("ENABLE_DAILY_PIPELINE", "true").lower()
 # Hora (UTC) de la corrida diaria. 13 UTC ≈ 07:00 en Ciudad de México (UTC-6).
 DAILY_PIPELINE_HOUR_UTC: int = int(os.getenv("DAILY_PIPELINE_HOUR_UTC", "13"))
 
+# --- Congresos estatales (programados SEMANALMENTE) ---
+# Los 32 congresos se actualizan 1 vez por semana (no a diario): así la cobertura
+# se mantiene fresca sin agotar la cuota mensual de ScrapingBee.
+ENABLE_WEEKLY_CONGRESOS: bool = os.getenv("ENABLE_WEEKLY_CONGRESOS", "true").lower() in {
+    "1", "true", "yes",
+}
+# Día de la semana (0=lunes … 6=domingo) y hora UTC de la corrida de congresos.
+CONGRESOS_WEEKDAY: int = int(os.getenv("CONGRESOS_WEEKDAY", "0"))  # lunes
+CONGRESOS_HOUR_UTC: int = int(os.getenv("CONGRESOS_HOUR_UTC", "10"))  # 04:00 CDMX
+
 # --- Fuentes adicionales (multi-fuente) ---
 # Fuentes activas en el pipeline (lista separada por comas).
 # Disponibles: DOF, CNBV, SAT, BANXICO, DIPUTADOS

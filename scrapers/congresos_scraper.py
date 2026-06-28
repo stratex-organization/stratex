@@ -144,3 +144,15 @@ def run_congresos(
         run_congreso(db, c, hoy, render_js=render_js, profundo=profundo)
         for c in claves
     ]
+
+
+def run_todos(db: Session, hoy: date | None = None) -> list[ScrapeResult]:
+    """Ejecuta los 32 congresos (vía directa primero; ScrapingBee como respaldo).
+
+    Usa render_js=False para no agotar la cuota: intenta directo y solo recurre
+    a ScrapingBee (sin render) cuando el sitio bloquea por IP. `profundo=True`
+    activa el crawl de 2º nivel (sección de boletines) cuando la portada no da
+    publicaciones.
+    """
+    claves = [c[0] for c in CONGRESOS]
+    return run_congresos(db, claves, hoy=hoy, render_js=False, profundo=True)
