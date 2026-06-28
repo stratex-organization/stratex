@@ -9,7 +9,7 @@ builder = "dockerfile"
 # Sin startCommand: usamos el CMD del Dockerfile, que corre vía `sh -c` y
 # expande ${PORT} en runtime (un startCommand aquí se ejecuta sin shell y
 # pasaría "$PORT" literal a uvicorn).
-healthcheckPath = "/api/stats"
+healthcheckPath = "/health"
 healthcheckTimeout = 100
 restartPolicyType = "on_failure"
 restartPolicyMaxRetries = 3
