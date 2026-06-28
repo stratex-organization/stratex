@@ -1,0 +1,33 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: stratex
+      POSTGRES_PASSWORD: stratex
+      POSTGRES_DB: stratex
+    ports:
+      - "5432:5432"
+    volumes:
+      - stratex_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U stratex"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build: .
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql+asyncpg://stratex:stratex@db:5432/stratex
+      JWT_SECRET: dev-only-change-me
+      CORS_ORIGINS: http://localhost:3000
+      DEFAULT_PASSWORD: PonchoCabra123
+      # BREVO_API_KEY: ""   # vacío => correos al log
+    ports:
+      - "8000:8000"
+
+volumes:
+  stratex_pgdata:

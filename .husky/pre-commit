@@ -1,0 +1,8 @@
+#!/usr/bin/env sh
+# Monorepo pre-commit hook.
+# Frontend: run lint-staged (eslint --fix + prettier) on staged files.
+# When the backend lands in /backend, add its checks (ruff/black) below.
+
+if git diff --cached --name-only | grep -q '^frontend/'; then
+  cd frontend && pnpm exec lint-staged
+fi
