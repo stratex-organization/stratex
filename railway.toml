@@ -1,0 +1,15 @@
+# Configuración de despliegue para Railway.
+# Usa el Dockerfile del repo; Railway inyecta $PORT y (si agregas el plugin de
+# PostgreSQL) la variable DATABASE_URL automáticamente.
+
+[build]
+builder = "dockerfile"
+
+[deploy]
+# Sin startCommand: usamos el CMD del Dockerfile, que corre vía `sh -c` y
+# expande ${PORT} en runtime (un startCommand aquí se ejecuta sin shell y
+# pasaría "$PORT" literal a uvicorn).
+healthcheckPath = "/api/stats"
+healthcheckTimeout = 100
+restartPolicyType = "on_failure"
+restartPolicyMaxRetries = 3

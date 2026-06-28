@@ -1,0 +1,163 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+/*
+  Paleta de marca Xignux (Manual de Identidad). Valores hex exactos del handoff de diseño.
+  El tema mapea estos colores a los tokens de shadcn para que `bg-card`, `text-foreground`,
+  `bg-primary`, etc. rindan la identidad de Stratex sin colores hardcodeados en los componentes.
+*/
+:root {
+  --radius: 0.6875rem; /* 11px — inputs/botones */
+
+  --background: #faf6f3; /* fondo de contenido */
+  --foreground: #241412; /* texto fuerte */
+  --card: #ffffff;
+  --card-foreground: #241412;
+  --popover: #ffffff;
+  --popover-foreground: #241412;
+  --primary: #ff4500; /* naranja Xignux */
+  --primary-foreground: #ffffff;
+  --secondary: #ffeae0; /* tint naranja */
+  --secondary-foreground: #b23a12;
+  --muted: #f7f2ef;
+  --muted-foreground: #6e5c55; /* texto medio */
+  --accent: #ffeae0;
+  --accent-foreground: #ff4500;
+  --destructive: #c13b2a;
+  --destructive-foreground: #ffffff;
+  --border: #ece2dc;
+  --input: #e3d6cf;
+  --ring: #ff4500;
+
+  /* texto tenue / etiquetas */
+  --muted-faint: #a4938b;
+  --label: #8a776f;
+
+  --chart-1: #ff4500;
+  --chart-2: #5b7fb0;
+  --chart-3: #d8a450;
+  --chart-4: #4e9a2a;
+  --chart-5: #c13b2a;
+
+  /* Sidebar (panel guinda) */
+  --sidebar: #560004;
+  --sidebar-foreground: #e7c4b8;
+  --sidebar-primary: #ff4500;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: rgba(255, 255, 255, 0.08);
+  --sidebar-accent-foreground: #ffffff;
+  --sidebar-border: rgba(255, 255, 255, 0.12);
+  --sidebar-ring: #ff4500;
+  --sidebar-muted: #c98b7b;
+  --sidebar-sub: #d79c8c;
+}
+
+.dark {
+  --background: #161010;
+  --foreground: #f6ece7;
+  --card: #211917;
+  --card-foreground: #f6ece7;
+  --popover: #1e1614;
+  --popover-foreground: #f6ece7;
+  --primary: #ff4500;
+  --primary-foreground: #ffffff;
+  --secondary: rgba(255, 69, 0, 0.16);
+  --secondary-foreground: #ff7a4d;
+  --muted: #211917;
+  --muted-foreground: #b5a299;
+  --accent: rgba(255, 69, 0, 0.16);
+  --accent-foreground: #ff7a4d;
+  --destructive: #e5604e;
+  --destructive-foreground: #ffffff;
+  --border: #2e2320;
+  --input: #362826;
+  --ring: #ff4500;
+
+  --muted-faint: #8e7e76;
+  --label: #9c8980;
+
+  --chart-1: #ff4500;
+  --chart-2: #a9c6e2;
+  --chart-3: #e0b266;
+  --chart-4: #a7d98a;
+  --chart-5: #e5604e;
+
+  --sidebar: #1a0c0b;
+  --sidebar-foreground: #c6b0a8;
+  --sidebar-primary: #ff4500;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: rgba(255, 255, 255, 0.07);
+  --sidebar-accent-foreground: #f6ece7;
+  --sidebar-border: #2c1a18;
+  --sidebar-ring: #ff4500;
+  --sidebar-muted: #8a6157;
+  --sidebar-sub: #a07a6e;
+}
+
+@theme inline {
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-muted-faint: var(--muted-faint);
+  --color-label: var(--label);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-muted: var(--sidebar-muted);
+  --color-sidebar-sub: var(--sidebar-sub);
+  --font-sans: var(--font-jost);
+  --font-serif: var(--font-newsreader);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground font-sans;
+  }
+}
+
+@layer utilities {
+  /* Acento editorial: una palabra en serif italic dentro de un título. */
+  .serif {
+    font-family: var(--font-newsreader), Georgia, serif;
+    font-style: italic;
+    font-weight: 500;
+  }
+  .tnum {
+    font-variant-numeric: tabular-nums;
+  }
+}

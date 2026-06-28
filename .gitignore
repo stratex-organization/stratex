@@ -1,0 +1,19 @@
+# Entorno
+.env
+.venv/
+venv/
+env/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+
+# Logs / temporales
+*.log
+.DS_Store
+
+# Bundle CA combinado (se regenera en runtime desde certifi + intermedio)
+certs/_combined_ca.pem
+logs/
