@@ -30,6 +30,7 @@ from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 from sqlalchemy import func, select, update
 
+import scheduler
 from ai import analyzer
 from config import API_KEY, CORS_ORIGINS, DEEPSEEK_API_KEY, FETCH_FULL_TEXT
 from database import get_session, init_db
@@ -45,7 +46,13 @@ logger = logging.getLogger(__name__)
 async def lifespan(app: FastAPI):
     # Garantiza que el esquema/columnas existan al levantar la API.
     init_db()
-    yield
+    # Arranca el pipeline diario automático (extracción + IA + alertas).
+    tarea_diaria = scheduler.iniciar()
+    try:
+        yield
+    finally:
+        if tarea_diaria is not None:
+            tarea_diaria.cancel()
 
 
 app = FastAPI(title="StrateX RegTech API", version="1.1", lifespan=lifespan)

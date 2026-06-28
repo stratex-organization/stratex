@@ -45,6 +45,15 @@ AI_MODEL: str = os.getenv("AI_MODEL", "deepseek-chat")
 # Cuántas publicaciones procesar por corrida (0 = sin límite).
 AI_BATCH_LIMIT: int = int(os.getenv("AI_BATCH_LIMIT", "25"))
 
+# --- Pipeline diario automático (programado dentro del servicio web) ---
+# Si True, el servicio corre el pipeline completo (extracción + texto + IA +
+# alertas) una vez al día a la hora indicada en UTC.
+ENABLE_DAILY_PIPELINE: bool = os.getenv("ENABLE_DAILY_PIPELINE", "true").lower() in {
+    "1", "true", "yes",
+}
+# Hora (UTC) de la corrida diaria. 13 UTC ≈ 07:00 en Ciudad de México (UTC-6).
+DAILY_PIPELINE_HOUR_UTC: int = int(os.getenv("DAILY_PIPELINE_HOUR_UTC", "13"))
+
 # --- Fuentes adicionales (multi-fuente) ---
 # Fuentes activas en el pipeline (lista separada por comas).
 # Disponibles: DOF, CNBV, SAT, BANXICO, DIPUTADOS
