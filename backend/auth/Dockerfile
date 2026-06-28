@@ -10,7 +10,7 @@ WORKDIR /app
 # Instalar dependencias primero (mejor caché de capas)
 COPY pyproject.toml README.md ./
 COPY app ./app
-RUN pip install --upgrade pip && pip install .
+RUN pip install --upgrade pip setuptools wheel hatchling && pip install .
 
 # Copiar el resto del código
 COPY . .
