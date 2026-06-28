@@ -8,10 +8,11 @@ ENV PYTHONUNBUFFERED=1 \
 WORKDIR /app
 
 # Instalar dependencias primero (mejor caché de capas)
-COPY pyproject.toml ./
-RUN pip install --upgrade pip && pip install .
+COPY pyproject.toml README.md ./
+COPY app ./app
+RUN pip install --upgrade pip setuptools wheel hatchling && pip install .
 
-# Copiar el código
+# Copiar el resto del código
 COPY . .
 
 EXPOSE 8000
