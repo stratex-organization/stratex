@@ -86,3 +86,6 @@ pytest        # usa SQLite async en memoria; no necesita Postgres
 Hashing argon2, JWT firmado, CORS restringido, rate limiting en login, validación estricta de
 entrada y mensajes de error genéricos. **Pendiente (futuro):** refresh tokens, bloqueo por intentos
 fallidos y recuperación de contraseña por correo.
+
+
+este cambio es para ensenar a la clase que se anadio un header.
